@@ -55,7 +55,9 @@
   <nav class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-logo">
-        <div class="brand-icon">☀️</div>
+        <div class="brand-icon" style="background:transparent;padding:2px;">
+          <img src="/images/bg-logo.svg" style="width:30px;height:30px;object-fit:contain;" alt="BG Logo" />
+        </div>
         <div>
           <div class="brand-name">Brighten Generation</div>
           <div class="brand-sub">Installer Platform</div>
@@ -98,7 +100,7 @@
     <div class="page-body">
       <div class="alert alert-info mb-16">
         <i class="fa-solid fa-circle-info"></i>
-        <span>Calculations use Thai electricity rate (4.5 THB/kWh) and Thailand average peak sun hours (4.5 hr/day). Results are estimates for proposal purposes.</span>
+        <span>Calculations use Thailand average peak sun hours (4.5 hr/day) and 80% system efficiency. Select Fixed or TOU tariff below. Results are estimates for proposal purposes.</span>
       </div>
 
       <div class="two-col">
@@ -138,6 +140,49 @@
               <div class="form-hint">Customer's average monthly electricity bill</div>
             </div>
 
+            <!-- Tariff Type -->
+            <div class="form-group">
+              <label class="form-label">Electricity Tariff Type</label>
+              <div class="toggle-group">
+                <button class="toggle-btn active" id="btnFixed" onclick="setTariff('fixed')">
+                  <i class="fa-solid fa-bolt"></i> Fixed Rate
+                </button>
+                <button class="toggle-btn" id="btnTOU" onclick="setTariff('tou')">
+                  <i class="fa-solid fa-clock"></i> TOU Rate
+                </button>
+              </div>
+            </div>
+
+            <!-- Fixed Rate input -->
+            <div class="form-group" id="fixedRateGroup">
+              <label class="form-label">Electricity Tariff (THB/kWh)</label>
+              <input type="number" class="form-control" id="fixedRate" value="4.5"
+                     step="0.01" min="0" oninput="calculate()" />
+              <div class="form-hint">Standard PEA/MEA residential flat rate</div>
+            </div>
+
+            <!-- TOU Rate inputs -->
+            <div id="touRateGroup" style="display:none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Peak Rate (THB/kWh)</label>
+                  <input type="number" class="form-control" id="peakRate" value="5.7369"
+                         step="0.0001" min="0" oninput="calculate()" />
+                  <div class="form-hint">Mon–Fri 09:00–22:00</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Off-Peak Rate (THB/kWh)</label>
+                  <input type="number" class="form-control" id="offpeakRate" value="2.6038"
+                         step="0.0001" min="0" oninput="calculate()" />
+                  <div class="form-hint">Nights, weekends & holidays</div>
+                </div>
+              </div>
+              <div class="alert alert-info" style="margin-top:-8px;margin-bottom:16px;">
+                <i class="fa-solid fa-circle-info"></i>
+                <span style="font-size:12px;">Defaults are MEA residential TOU rates. ~80% of solar generation falls during peak hours (09:00–17:00). With battery, effective peak utilisation rises to ~92%.</span>
+              </div>
+            </div>
+
             <!-- Battery -->
             <div class="form-group">
               <label class="form-label">Battery Storage Included?</label>
@@ -164,9 +209,17 @@
           <div class="card mt-16">
             <div class="card-title" style="margin-bottom:12px;">Calculation Assumptions</div>
             <div style="display:flex;flex-direction:column;gap:8px;">
-              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
-                <span style="color:var(--subtext);">Electricity tariff</span>
-                <span style="font-weight:600;">4.5 THB/kWh</span>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;" id="assumTariffRow">
+                <span style="color:var(--subtext);">Tariff mode</span>
+                <span style="font-weight:600;" id="assumTariffVal">Fixed · 4.50 THB/kWh</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;" id="assumPeakRow" style="display:none;">
+                <span style="color:var(--subtext);">TOU peak hours</span>
+                <span style="font-weight:600;">Mon–Fri 09:00–22:00</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;" id="assumPeakOverlapRow" style="display:none;">
+                <span style="color:var(--subtext);">Peak solar overlap</span>
+                <span style="font-weight:600;" id="assumPeakOverlapVal">80% (solar only)</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:12.5px;">
                 <span style="color:var(--subtext);">Peak sun hours (Thailand)</span>
@@ -295,13 +348,13 @@
     <tbody id="printTableBody"></tbody>
   </table>
 
-  <div style="background:#F0F4F8;border-radius:8px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:#6B7A99;line-height:1.6;">
-    <strong style="color:#1A2B4A;">Disclaimer:</strong> These estimates are based on standard Thai electricity tariff (4.5 THB/kWh) and average Thailand solar irradiance (4.5 peak sun hours/day). Actual savings may vary based on consumption patterns, shading, and grid conditions. This document is for proposal purposes only and does not constitute a formal financial guarantee.
+  <div style="background:#F0F4F8;border-radius:8px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:#6B7A99;line-height:1.6;" id="printDisclaimer">
+    <strong style="color:#1A2B4A;">Disclaimer:</strong> These estimates are based on average Thailand solar irradiance (4.5 peak sun hours/day) and 80% system efficiency. Tariff rates used are shown in the table above. Actual savings may vary based on consumption patterns, shading, grid tariff changes, and local conditions. This document is for proposal purposes only and does not constitute a formal financial guarantee.
   </div>
 
   <div class="proposal-footer">
     <div>Prepared by Brighten Generation | Sigenergy Tier-1 Authorized Distributor</div>
-    <div>www.brightgeneration.co.th</div>
+    <div>contact_us@brighten-gen.com · 02-124-3437</div>
   </div>
 </div>
 
@@ -322,20 +375,67 @@ document.getElementById('sidebarCompany').textContent = userData.company   || ''
 document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
 
 // ─── State ─────────────────────────────────────────────────────────────────────
-let hasBattery = true;
+let hasBattery  = true;
+let tariffMode  = 'fixed'; // 'fixed' | 'tou'
+
+// TOU constants (MEA residential defaults)
+const TOU_PEAK_OVERLAP_SOLAR   = 0.80; // 80% of solar gen falls in peak hours (09:00-17:00 within 09:00-22:00)
+const TOU_PEAK_OVERLAP_BATTERY = 0.92; // 92% with battery (evening peak shifting)
 
 function setBattery(val) {
   hasBattery = val;
   document.getElementById('btnYesBattery').classList.toggle('active',  val);
   document.getElementById('btnNoBattery').classList.toggle('active',  !val);
   document.getElementById('batteryHint').textContent = val
-    ? 'Battery increases self-consumption and enables evening savings.'
+    ? 'Battery increases self-consumption and shifts more savings to peak TOU hours.'
     : 'Solar-only systems feed excess energy back to the grid.';
+  updateAssumptionsCard();
   calculate();
 }
 
+function setTariff(mode) {
+  tariffMode = mode;
+  document.getElementById('btnFixed').classList.toggle('active', mode === 'fixed');
+  document.getElementById('btnTOU').classList.toggle('active',   mode === 'tou');
+  document.getElementById('fixedRateGroup').style.display  = mode === 'fixed' ? '' : 'none';
+  document.getElementById('touRateGroup').style.display    = mode === 'tou'   ? '' : 'none';
+  updateAssumptionsCard();
+  calculate();
+}
+
+function getEffectiveRate() {
+  if (tariffMode === 'fixed') {
+    return parseFloat(document.getElementById('fixedRate').value) || 4.5;
+  }
+  const peakRate    = parseFloat(document.getElementById('peakRate').value)    || 5.7369;
+  const offpeakRate = parseFloat(document.getElementById('offpeakRate').value) || 2.6038;
+  const peakOverlap = hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR;
+  return (peakOverlap * peakRate) + ((1 - peakOverlap) * offpeakRate);
+}
+
+function updateAssumptionsCard() {
+  const isTOU       = tariffMode === 'tou';
+  const peakOverlap = hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR;
+
+  if (isTOU) {
+    const peakRate    = parseFloat(document.getElementById('peakRate').value)    || 5.7369;
+    const offpeakRate = parseFloat(document.getElementById('offpeakRate').value) || 2.6038;
+    const eff         = getEffectiveRate();
+    document.getElementById('assumTariffVal').textContent =
+      `TOU · Effective ${eff.toFixed(2)} THB/kWh`;
+    document.getElementById('assumPeakRow').style.display        = '';
+    document.getElementById('assumPeakOverlapRow').style.display = '';
+    document.getElementById('assumPeakOverlapVal').textContent   =
+      `${(peakOverlap * 100).toFixed(0)}% (${hasBattery ? 'with battery' : 'solar only'})`;
+  } else {
+    const rate = parseFloat(document.getElementById('fixedRate').value) || 4.5;
+    document.getElementById('assumTariffVal').textContent        = `Fixed · ${rate.toFixed(2)} THB/kWh`;
+    document.getElementById('assumPeakRow').style.display        = 'none';
+    document.getElementById('assumPeakOverlapRow').style.display = 'none';
+  }
+}
+
 // ─── Calculation ───────────────────────────────────────────────────────────────
-const ELECTRICITY_RATE  = 4.5;   // THB/kWh
 const PEAK_SUN_HOURS    = 4.5;   // hours/day (Thailand average)
 const SYSTEM_EFFICIENCY = 0.80;  // 80%
 const SELF_CON_SOLAR    = 0.70;  // 70% self-consumption without battery
@@ -348,33 +448,35 @@ function fmt(num, decimals = 0) {
 }
 
 function calculate() {
-  const size  = parseFloat(document.getElementById('systemSize').value);
-  const bill  = parseFloat(document.getElementById('monthlyBill').value);
-  const cost  = parseFloat(document.getElementById('systemCost').value);
+  const size         = parseFloat(document.getElementById('systemSize').value);
+  const bill         = parseFloat(document.getElementById('monthlyBill').value);
+  const cost         = parseFloat(document.getElementById('systemCost').value);
+  const effectiveRate = getEffectiveRate();
+
+  updateAssumptionsCard();
 
   if (!size || size <= 0) {
     showPlaceholder();
     return;
   }
 
-  const selfCon      = hasBattery ? SELF_CON_BATTERY : SELF_CON_SOLAR;
-  const dailyProd    = size * PEAK_SUN_HOURS * SYSTEM_EFFICIENCY;              // kWh/day
-  const annualProd   = dailyProd * 365;                                         // kWh/year
-  const usefulProd   = annualProd * selfCon;                                    // kWh/year (self-consumed)
-  const annualSav    = usefulProd * ELECTRICITY_RATE;                           // THB/year
+  const selfCon           = hasBattery ? SELF_CON_BATTERY : SELF_CON_SOLAR;
+  const dailyProd         = size * PEAK_SUN_HOURS * SYSTEM_EFFICIENCY;   // kWh/day
+  const annualProd        = dailyProd * 365;                               // kWh/year
+  const usefulProd        = annualProd * selfCon;                          // kWh/year self-consumed
+  const annualSav         = usefulProd * effectiveRate;                    // THB/year
   const monthlyBillAnnual = (bill || 0) * 12;
 
-  // Cap savings at annual bill (can't save more than you spend)
+  // Cap savings at annual bill (can't save more than customer spends)
   const cappedAnnualSav = bill > 0 ? Math.min(annualSav, monthlyBillAnnual) : annualSav;
-  const monthlySav  = cappedAnnualSav / 12;
-  const reduction   = bill > 0 ? Math.min(100, (monthlySav / bill) * 100) : null;
-  const lifetimeSav = cappedAnnualSav * 25;
+  const monthlySav      = cappedAnnualSav / 12;
+  const reduction       = bill > 0 ? Math.min(100, (monthlySav / bill) * 100) : null;
+  const lifetimeSav     = cappedAnnualSav * 25;
+  const co2Annual       = annualProd * CO2_FACTOR;                         // kg CO2/year
+  const co2Tons         = co2Annual / 1000;
+  const trees           = Math.round(co2Tons * TREES_PER_TON_CO2 * 1000);
 
-  const co2Annual   = annualProd * CO2_FACTOR;                                  // kg CO2/year
-  const co2Tons     = co2Annual / 1000;
-  const trees       = Math.round(co2Tons * TREES_PER_TON_CO2 * 1000);          // approx trees
-
-  // Update UI
+  // Update result UI
   document.getElementById('resultsPlaceholder').style.display = 'none';
   document.getElementById('resultsContent').style.display     = 'block';
   document.getElementById('exportCard').style.display         = 'block';
@@ -389,19 +491,23 @@ function calculate() {
   document.getElementById('co2Offset').textContent        = `${fmt(co2Annual / 1000, 1)} tonnes`;
   document.getElementById('co2Bar').style.width           = `${Math.min(100, (co2Annual / 10000) * 100)}%`;
 
-  // Payback period
   if (!isNaN(cost) && cost > 0) {
-    const payback = cost / cappedAnnualSav;
-    document.getElementById('paybackPeriod').textContent = `${fmt(payback, 1)} years`;
+    document.getElementById('paybackPeriod').textContent = `${fmt(cost / cappedAnnualSav, 1)} years`;
     document.getElementById('paybackRow').style.display  = 'block';
   } else {
     document.getElementById('paybackRow').style.display  = 'none';
   }
 
   // Store for print
-  window._calcData = { size, bill, cost, selfCon, dailyProd, annualProd, usefulProd,
-                        cappedAnnualSav, monthlySav, reduction, lifetimeSav,
-                        co2Annual, co2Tons, trees, hasBattery };
+  window._calcData = {
+    size, bill, cost, selfCon, dailyProd, annualProd, usefulProd,
+    cappedAnnualSav, monthlySav, reduction, lifetimeSav,
+    co2Annual, co2Tons, trees, hasBattery,
+    tariffMode, effectiveRate,
+    peakRate:    tariffMode === 'tou' ? (parseFloat(document.getElementById('peakRate').value)    || 5.7369) : null,
+    offpeakRate: tariffMode === 'tou' ? (parseFloat(document.getElementById('offpeakRate').value) || 2.6038) : null,
+    peakOverlap: tariffMode === 'tou' ? (hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR) : null,
+  };
 }
 
 function showPlaceholder() {
@@ -439,13 +545,22 @@ function printProposal() {
     </div>
   `).join('');
 
+  const tariffNote = d.tariffMode === 'tou'
+    ? `TOU · Peak ${d.peakRate.toFixed(4)} / Off-Peak ${d.offpeakRate.toFixed(4)} THB/kWh`
+    : `Fixed · ${d.effectiveRate.toFixed(2)} THB/kWh`;
+
+  const tariffMethodNote = d.tariffMode === 'tou'
+    ? `TOU mode: ${(d.peakOverlap * 100).toFixed(0)}% solar overlap with peak hours (09:00–22:00), effective rate ${d.effectiveRate.toFixed(4)} THB/kWh`
+    : `Fixed tariff ${d.effectiveRate.toFixed(2)} THB/kWh`;
+
   const rows = [
     ['System Size', `${d.size} kW`, 'Solar panel capacity'],
     ['System Type', sysType, ''],
-    ['Daily Production', `${(d.dailyProd).toFixed(1)} kWh/day`, 'Thailand average 4.5 hr/day'],
+    ['Tariff Type', tariffNote, ''],
+    ['Daily Production', `${(d.dailyProd).toFixed(1)} kWh/day`, 'Thailand average 4.5 hr/day, 80% efficiency'],
     ['Annual Production', `${Math.round(d.annualProd).toLocaleString()} kWh/year`, ''],
     ['Self-Consumption Rate', `${(d.selfCon * 100).toFixed(0)}%`, d.hasBattery ? 'With battery storage' : 'Solar-only estimate'],
-    ['Annual Electricity Savings', `${Math.round(d.cappedAnnualSav).toLocaleString()} THB/year`, 'At 4.5 THB/kWh'],
+    ['Annual Electricity Savings', `${Math.round(d.cappedAnnualSav).toLocaleString()} THB/year`, tariffMethodNote],
     ['Monthly Savings', `≈ ${Math.round(d.monthlySav).toLocaleString()} THB/month`, ''],
     ['Bill Reduction', d.reduction !== null ? `${d.reduction.toFixed(0)}%` : 'N/A', 'Compared to current bill'],
     d.cost > 0 ? ['Estimated Payback Period', `${(d.cost / d.cappedAnnualSav).toFixed(1)} years`, 'Based on system cost provided'] : null,

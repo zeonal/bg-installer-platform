@@ -277,10 +277,10 @@ body {
   letter-spacing: 0.6px;
 }
 
-.tier-standard  { background: #E9EEF4; color: #4A5568; }
-.tier-advanced  { background: #DBEAFE; color: #1D4ED8; }
-.tier-expert    { background: #EDE9FE; color: #5B21B6; }
-.tier-master    { background: var(--yellow); color: var(--navy); }
+.tier-standard  { background: #6B7280; color: #FFFFFF; }
+.tier-advanced  { background: #0D9488; color: #FFFFFF; }
+.tier-expert    { background: #B45309; color: #FFFFFF; }
+.tier-master    { background: var(--navy); color: var(--yellow); }
 
 /* Large tier badge for dashboard hero */
 .tier-badge-lg {
