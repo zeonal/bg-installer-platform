@@ -183,18 +183,22 @@
               </div>
             </div>
 
-            <!-- Battery -->
+            <!-- Battery Capacity -->
             <div class="form-group">
-              <label class="form-label">Battery Storage Included?</label>
-              <div class="toggle-group">
-                <button class="toggle-btn" id="btnNoBattery" onclick="setBattery(false)">
-                  <i class="fa-solid fa-solar-panel"></i> Solar Only
-                </button>
-                <button class="toggle-btn active" id="btnYesBattery" onclick="setBattery(true)">
-                  <i class="fa-solid fa-battery-full"></i> Solar + Battery
-                </button>
+              <label class="form-label">Battery Capacity (kWh)</label>
+              <input type="number" class="form-control" id="batterySize" value="0" min="0" step="0.5" oninput="calculate()" />
+              <div class="form-hint">Enter 0 for solar-only. Common sizes: 5.12 kWh, 10.24 kWh (Sigenergy ESS)</div>
+            </div>
+
+            <!-- Daytime Consumption -->
+            <div class="form-group">
+              <label class="form-label">Daytime Consumption — % used during 09:00–17:00</label>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                <input type="range" id="daytimePctSlider" min="0" max="100" value="35" style="flex:1;accent-color:var(--navy);" oninput="syncSlider()" />
+                <input type="number" class="form-control" id="daytimePct" value="35" min="0" max="100" style="width:72px;" oninput="syncInput()" />
+                <span style="color:var(--subtext);font-size:13px;flex-shrink:0;">%</span>
               </div>
-              <div class="form-hint" id="batteryHint">Battery increases self-consumption and evening savings.</div>
+              <div class="form-hint">Residential: 20–45% &nbsp;·&nbsp; Office/Shop: 50–70% &nbsp;·&nbsp; Factory: 60–80%</div>
             </div>
 
             <!-- System Cost -->
@@ -229,13 +233,17 @@
                 <span style="color:var(--subtext);">System efficiency factor</span>
                 <span style="font-weight:600;">80%</span>
               </div>
-              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
-                <span style="color:var(--subtext);">Self-consumption (solar only)</span>
-                <span style="font-weight:600;">70%</span>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;" id="assumDaytimeRow">
+                <span style="color:var(--subtext);">Daytime consumption</span>
+                <span style="font-weight:600;" id="assumDaytimeVal">35% (09:00–17:00)</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:12.5px;">
-                <span style="color:var(--subtext);">Self-consumption (with battery)</span>
+                <span style="color:var(--subtext);">Battery round-trip efficiency</span>
                 <span style="font-weight:600;">90%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">Evening peak share (17:00–22:00)</span>
+                <span style="font-weight:600;">31% of non-daytime</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:12.5px;">
                 <span style="color:var(--subtext);">CO₂ factor (Thailand grid)</span>
@@ -267,6 +275,12 @@
                 <div class="result-big" id="annualSavings">—</div>
                 <div class="result-big-sub" id="monthlySavings">— THB/month</div>
               </div>
+              <!-- Savings breakdown -->
+              <div class="result-item" id="savingsBreakdownRow" style="display:none;">
+                <div class="result-label">Savings Breakdown</div>
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;" id="savingsBreakdown"></div>
+              </div>
+
               <div class="result-item">
                 <div class="result-label">Bill Reduction</div>
                 <div class="result-big" id="billReduction">—</div>
@@ -375,58 +389,63 @@ document.getElementById('sidebarCompany').textContent = userData.company   || ''
 document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
 
 // ─── State ─────────────────────────────────────────────────────────────────────
-let hasBattery  = true;
-let tariffMode  = 'fixed'; // 'fixed' | 'tou'
+let tariffMode = 'fixed'; // 'fixed' | 'tou'
 
-// TOU constants (MEA residential defaults)
-const TOU_PEAK_OVERLAP_SOLAR   = 0.80; // 80% of solar gen falls in peak hours (09:00-17:00 within 09:00-22:00)
-const TOU_PEAK_OVERLAP_BATTERY = 0.92; // 92% with battery (evening peak shifting)
+// Constants
+const PEAK_SUN_HOURS    = 4.5;   // hr/day (Thailand average)
+const SYSTEM_EFFICIENCY = 0.80;  // 80% system derate
+const BATTERY_RT_EFF    = 0.90;  // battery round-trip efficiency
+const EVENING_PEAK_FRAC = 0.31;  // 31% of non-daytime load falls in evening peak (17:00–22:00)
+const NIGHT_OFFPK_FRAC  = 0.69;  // 69% falls in night off-peak (22:00–09:00)
+const CO2_FACTOR        = 0.50;  // kg CO2/kWh (Thailand grid average)
+const TREES_PER_TON_CO2 = 20;    // approximate trees per tonne CO2/year
 
-function setBattery(val) {
-  hasBattery = val;
-  document.getElementById('btnYesBattery').classList.toggle('active',  val);
-  document.getElementById('btnNoBattery').classList.toggle('active',  !val);
-  document.getElementById('batteryHint').textContent = val
-    ? 'Battery increases self-consumption and shifts more savings to peak TOU hours.'
-    : 'Solar-only systems feed excess energy back to the grid.';
+// ─── Slider sync ───────────────────────────────────────────────────────────────
+function syncSlider() {
+  const v = parseInt(document.getElementById('daytimePctSlider').value);
+  document.getElementById('daytimePct').value = v;
   updateAssumptionsCard();
   calculate();
 }
 
+function syncInput() {
+  let v = parseInt(document.getElementById('daytimePct').value);
+  if (isNaN(v)) v = 35;
+  v = Math.max(0, Math.min(100, v));
+  document.getElementById('daytimePct').value       = v;
+  document.getElementById('daytimePctSlider').value = v;
+  updateAssumptionsCard();
+  calculate();
+}
+
+// ─── Tariff mode ───────────────────────────────────────────────────────────────
 function setTariff(mode) {
   tariffMode = mode;
   document.getElementById('btnFixed').classList.toggle('active', mode === 'fixed');
   document.getElementById('btnTOU').classList.toggle('active',   mode === 'tou');
-  document.getElementById('fixedRateGroup').style.display  = mode === 'fixed' ? '' : 'none';
-  document.getElementById('touRateGroup').style.display    = mode === 'tou'   ? '' : 'none';
+  document.getElementById('fixedRateGroup').style.display = mode === 'fixed' ? '' : 'none';
+  document.getElementById('touRateGroup').style.display   = mode === 'tou'   ? '' : 'none';
   updateAssumptionsCard();
   calculate();
 }
 
-function getEffectiveRate() {
-  if (tariffMode === 'fixed') {
-    return parseFloat(document.getElementById('fixedRate').value) || 4.5;
-  }
-  const peakRate    = parseFloat(document.getElementById('peakRate').value)    || 5.7369;
-  const offpeakRate = parseFloat(document.getElementById('offpeakRate').value) || 2.6038;
-  const peakOverlap = hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR;
-  return (peakOverlap * peakRate) + ((1 - peakOverlap) * offpeakRate);
-}
-
+// ─── Assumptions card ──────────────────────────────────────────────────────────
 function updateAssumptionsCard() {
-  const isTOU       = tariffMode === 'tou';
-  const peakOverlap = hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR;
+  const daytimePct = parseInt(document.getElementById('daytimePct').value) || 35;
+  document.getElementById('assumDaytimeVal').textContent = `${daytimePct}% (09:00–17:00)`;
 
-  if (isTOU) {
+  if (tariffMode === 'tou') {
     const peakRate    = parseFloat(document.getElementById('peakRate').value)    || 5.7369;
     const offpeakRate = parseFloat(document.getElementById('offpeakRate').value) || 2.6038;
-    const eff         = getEffectiveRate();
-    document.getElementById('assumTariffVal').textContent =
-      `TOU · Effective ${eff.toFixed(2)} THB/kWh`;
+    // Blended rate weighted by when consumption happens
+    const dp = daytimePct / 100;
+    const blended = dp * peakRate
+                  + (1 - dp) * EVENING_PEAK_FRAC * peakRate
+                  + (1 - dp) * NIGHT_OFFPK_FRAC  * offpeakRate;
+    document.getElementById('assumTariffVal').textContent = `TOU · Blended ${blended.toFixed(2)} THB/kWh`;
     document.getElementById('assumPeakRow').style.display        = '';
     document.getElementById('assumPeakOverlapRow').style.display = '';
-    document.getElementById('assumPeakOverlapVal').textContent   =
-      `${(peakOverlap * 100).toFixed(0)}% (${hasBattery ? 'with battery' : 'solar only'})`;
+    document.getElementById('assumPeakOverlapVal').textContent   = `Peak ${peakRate.toFixed(4)} / Off-Peak ${offpeakRate.toFixed(4)} THB/kWh`;
   } else {
     const rate = parseFloat(document.getElementById('fixedRate').value) || 4.5;
     document.getElementById('assumTariffVal').textContent        = `Fixed · ${rate.toFixed(2)} THB/kWh`;
@@ -435,78 +454,152 @@ function updateAssumptionsCard() {
   }
 }
 
-// ─── Calculation ───────────────────────────────────────────────────────────────
-const PEAK_SUN_HOURS    = 4.5;   // hours/day (Thailand average)
-const SYSTEM_EFFICIENCY = 0.80;  // 80%
-const SELF_CON_SOLAR    = 0.70;  // 70% self-consumption without battery
-const SELF_CON_BATTERY  = 0.90;  // 90% with battery
-const CO2_FACTOR        = 0.50;  // kg CO2 per kWh (Thailand grid)
-const TREES_PER_TON_CO2 = 20;    // approximate trees per tonne CO2/year
-
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(num, decimals = 0) {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+// ─── Core Calculation ──────────────────────────────────────────────────────────
 function calculate() {
-  const size         = parseFloat(document.getElementById('systemSize').value);
-  const bill         = parseFloat(document.getElementById('monthlyBill').value);
-  const cost         = parseFloat(document.getElementById('systemCost').value);
-  const effectiveRate = getEffectiveRate();
+  const systemKw    = parseFloat(document.getElementById('systemSize').value);
+  const monthlyBill = parseFloat(document.getElementById('monthlyBill').value);
+  const batteryKwh  = parseFloat(document.getElementById('batterySize').value) || 0;
+  const systemCost  = parseFloat(document.getElementById('systemCost').value);
+  const daytimePct  = (parseInt(document.getElementById('daytimePct').value) || 35) / 100;
+  const hasBattery  = batteryKwh > 0;
 
   updateAssumptionsCard();
 
-  if (!size || size <= 0) {
+  if (!systemKw || systemKw <= 0) {
     showPlaceholder();
     return;
   }
 
-  const selfCon           = hasBattery ? SELF_CON_BATTERY : SELF_CON_SOLAR;
-  const dailyProd         = size * PEAK_SUN_HOURS * SYSTEM_EFFICIENCY;   // kWh/day
-  const annualProd        = dailyProd * 365;                               // kWh/year
-  const usefulProd        = annualProd * selfCon;                          // kWh/year self-consumed
-  const annualSav         = usefulProd * effectiveRate;                    // THB/year
-  const monthlyBillAnnual = (bill || 0) * 12;
+  // ── Tariff rates ─────────────────────────────────────────────────────────────
+  const fixedRate   = parseFloat(document.getElementById('fixedRate').value)    || 4.5;
+  const peakRate    = parseFloat(document.getElementById('peakRate').value)      || 5.7369;
+  const offpeakRate = parseFloat(document.getElementById('offpeakRate').value)   || 2.6038;
+  const rPeak       = tariffMode === 'tou' ? peakRate    : fixedRate;
+  const rOffpeak    = tariffMode === 'tou' ? offpeakRate : fixedRate;
 
-  // Cap savings at annual bill (can't save more than customer spends)
-  const cappedAnnualSav = bill > 0 ? Math.min(annualSav, monthlyBillAnnual) : annualSav;
+  // ── Blended consumption rate (to back-calculate daily kWh from bill) ─────────
+  //   Daytime (09–17) counts as peak; evening peak 31% of remainder; night off-peak 69%
+  const blendedRate = daytimePct * rPeak
+                    + (1 - daytimePct) * EVENING_PEAK_FRAC * rPeak
+                    + (1 - daytimePct) * NIGHT_OFFPK_FRAC  * rOffpeak;
+
+  // ── Solar & consumption ──────────────────────────────────────────────────────
+  const dailySolar       = systemKw * PEAK_SUN_HOURS * SYSTEM_EFFICIENCY;   // kWh/day
+  const annualProd       = dailySolar * 365;
+
+  const dailyConsumption = (monthlyBill > 0 && blendedRate > 0)
+                            ? (monthlyBill / 30) / blendedRate
+                            : 0;
+  const daytimeConsump   = dailyConsumption * daytimePct;         // kWh used 09–17
+  const nonDaytime       = dailyConsumption * (1 - daytimePct);   // kWh used 17–next 09
+  const eveningConsump   = nonDaytime * EVENING_PEAK_FRAC;        // 17–22 (peak)
+  const nightConsump     = nonDaytime * NIGHT_OFFPK_FRAC;         // 22–09 (off-peak)
+
+  // ── Self-consumption: direct solar use (daytime) ─────────────────────────────
+  const directConsumed = Math.min(dailySolar, daytimeConsump);    // kWh used directly
+  const solarExcess    = Math.max(0, dailySolar - daytimeConsump); // surplus to charge battery
+
+  // ── Battery: charge from surplus, discharge to evening then night ────────────
+  let batteryToEvening = 0;
+  let batteryToNight   = 0;
+  let batteryCharged   = 0;
+
+  if (hasBattery) {
+    batteryCharged   = Math.min(solarExcess, batteryKwh);          // capped by battery capacity
+    const usable     = batteryCharged * BATTERY_RT_EFF;            // after round-trip loss
+    batteryToEvening = Math.min(usable, eveningConsump);
+    batteryToNight   = Math.min(usable - batteryToEvening, nightConsump);
+  }
+
+  // ── Daily savings ─────────────────────────────────────────────────────────────
+  //  Direct solar replaces daytime energy (daytime = peak in TOU)
+  const savingsDirect  = directConsumed   * rPeak;
+  const savingsEvening = batteryToEvening * rPeak;      // evening peak
+  const savingsNight   = batteryToNight   * rOffpeak;   // night off-peak
+  const dailySavings   = savingsDirect + savingsEvening + savingsNight;
+  const annualSavings  = dailySavings * 365;
+
+  // ── Cap savings at annual bill ────────────────────────────────────────────────
+  const annualBill      = (monthlyBill || 0) * 12;
+  const cappedAnnualSav = monthlyBill > 0 ? Math.min(annualSavings, annualBill) : annualSavings;
   const monthlySav      = cappedAnnualSav / 12;
-  const reduction       = bill > 0 ? Math.min(100, (monthlySav / bill) * 100) : null;
+  const reduction       = monthlyBill > 0 ? Math.min(100, (monthlySav / monthlyBill) * 100) : null;
   const lifetimeSav     = cappedAnnualSav * 25;
-  const co2Annual       = annualProd * CO2_FACTOR;                         // kg CO2/year
-  const co2Tons         = co2Annual / 1000;
-  const trees           = Math.round(co2Tons * TREES_PER_TON_CO2 * 1000);
 
-  // Update result UI
+  // ── CO₂ ───────────────────────────────────────────────────────────────────────
+  const co2Annual = annualProd * CO2_FACTOR;  // kg/year
+
+  // ── Update UI ─────────────────────────────────────────────────────────────────
   document.getElementById('resultsPlaceholder').style.display = 'none';
   document.getElementById('resultsContent').style.display     = 'block';
   document.getElementById('exportCard').style.display         = 'block';
   document.getElementById('printBtn').style.display           = 'flex';
 
   document.getElementById('annualProduction').textContent = `${fmt(annualProd)} kWh`;
-  document.getElementById('dailyProduction').textContent  = `${fmt(dailyProd, 1)} kWh/day`;
+  document.getElementById('dailyProduction').textContent  = `${fmt(dailySolar, 1)} kWh/day`;
   document.getElementById('annualSavings').textContent    = `${fmt(cappedAnnualSav)} THB`;
   document.getElementById('monthlySavings').textContent   = `≈ ${fmt(monthlySav)} THB/month`;
   document.getElementById('billReduction').textContent    = reduction !== null ? `${fmt(reduction, 0)}%` : 'N/A';
   document.getElementById('lifetimeSavings').textContent  = `${fmt(lifetimeSav)} THB`;
-  document.getElementById('co2Offset').textContent        = `${fmt(co2Annual / 1000, 1)} tonnes`;
+  document.getElementById('co2Offset').textContent        = `${fmt(co2Annual / 1000, 2)} tonnes`;
   document.getElementById('co2Bar').style.width           = `${Math.min(100, (co2Annual / 10000) * 100)}%`;
 
-  if (!isNaN(cost) && cost > 0) {
-    document.getElementById('paybackPeriod').textContent = `${fmt(cost / cappedAnnualSav, 1)} years`;
+  if (!isNaN(systemCost) && systemCost > 0 && cappedAnnualSav > 0) {
+    document.getElementById('paybackPeriod').textContent = `${fmt(systemCost / cappedAnnualSav, 1)} years`;
     document.getElementById('paybackRow').style.display  = 'block';
   } else {
     document.getElementById('paybackRow').style.display  = 'none';
   }
 
-  // Store for print
+  // ── Savings breakdown ─────────────────────────────────────────────────────────
+  if (monthlyBill > 0) {
+    const annualDirect  = savingsDirect  * 365;
+    const annualEvening = savingsEvening * 365;
+    const annualNight   = savingsNight   * 365;
+    const totalRaw      = annualDirect + annualEvening + annualNight;
+
+    const breakdownItems = [
+      { label: 'Direct solar (09–17)', value: annualDirect,  color: '#FFD014' },
+    ];
+    if (hasBattery) {
+      breakdownItems.push({ label: 'Battery → evening peak (17–22)', value: annualEvening, color: '#10B981' });
+      breakdownItems.push({ label: 'Battery → night (22–09)',        value: annualNight,   color: '#2E639B' });
+    }
+
+    const html = breakdownItems.map(item => {
+      const pct = totalRaw > 0 ? (item.value / totalRaw * 100).toFixed(0) : 0;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+          <span style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.75);">
+            <span style="width:8px;height:8px;border-radius:50%;background:${item.color};flex-shrink:0;"></span>
+            ${item.label}
+          </span>
+          <span style="font-weight:700;color:${item.color};">${fmt(item.value)} THB <span style="font-weight:400;color:rgba(255,255,255,0.4)">(${pct}%)</span></span>
+        </div>`;
+    }).join('');
+
+    document.getElementById('savingsBreakdown').innerHTML  = html;
+    document.getElementById('savingsBreakdownRow').style.display = 'block';
+  } else {
+    document.getElementById('savingsBreakdownRow').style.display = 'none';
+  }
+
+  // ── Store for print ───────────────────────────────────────────────────────────
   window._calcData = {
-    size, bill, cost, selfCon, dailyProd, annualProd, usefulProd,
+    systemKw, monthlyBill, batteryKwh, systemCost, daytimePct,
+    hasBattery, tariffMode,
+    fixedRate, peakRate, offpeakRate, blendedRate,
+    dailySolar, annualProd, dailyConsumption,
+    directConsumed, batteryCharged,
+    batteryToEvening, batteryToNight,
     cappedAnnualSav, monthlySav, reduction, lifetimeSav,
-    co2Annual, co2Tons, trees, hasBattery,
-    tariffMode, effectiveRate,
-    peakRate:    tariffMode === 'tou' ? (parseFloat(document.getElementById('peakRate').value)    || 5.7369) : null,
-    offpeakRate: tariffMode === 'tou' ? (parseFloat(document.getElementById('offpeakRate').value) || 2.6038) : null,
-    peakOverlap: tariffMode === 'tou' ? (hasBattery ? TOU_PEAK_OVERLAP_BATTERY : TOU_PEAK_OVERLAP_SOLAR) : null,
+    savingsDirect, savingsEvening, savingsNight,
+    co2Annual,
   };
 }
 
@@ -515,6 +608,7 @@ function showPlaceholder() {
   document.getElementById('resultsContent').style.display     = 'none';
   document.getElementById('exportCard').style.display         = 'none';
   document.getElementById('printBtn').style.display           = 'none';
+  document.getElementById('savingsBreakdownRow').style.display = 'none';
 }
 
 // ─── Print Proposal ────────────────────────────────────────────────────────────
@@ -522,22 +616,25 @@ function printProposal() {
   const d = window._calcData;
   if (!d) return;
 
-  const customer = document.getElementById('customerName').value || 'Not specified';
+  const customer = document.getElementById('customerName').value    || 'Not specified';
   const location = document.getElementById('projectLocation').value || 'Not specified';
-  const sysType  = d.hasBattery ? 'Solar + Battery Storage (Hybrid)' : 'Solar PV (Grid-Tied)';
+  const sysType  = d.hasBattery
+    ? `Solar + Battery (${d.batteryKwh} kWh) — Hybrid`
+    : 'Solar PV (Grid-Tied, no battery)';
 
-  document.getElementById('printDate').textContent    = `Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}`;
-  document.getElementById('printPrepBy').textContent  = `Prepared by: ${userData.full_name || '—'} · ${userData.company || ''}`;
+  document.getElementById('printDate').textContent     = `Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}`;
+  document.getElementById('printPrepBy').textContent   = `Prepared by: ${userData.full_name || '—'} · ${userData.company || ''}`;
   document.getElementById('printCustomer').textContent = customer;
   document.getElementById('printLocation').textContent = location;
   document.getElementById('printSystemType').textContent = sysType;
 
   const meta = [
-    { label: 'System Size', value: `${d.size}`, unit: 'kW' },
-    { label: 'Annual Savings', value: `${(d.cappedAnnualSav/1000).toFixed(1)}K`, unit: 'THB' },
-    { label: d.cost > 0 ? 'Payback Period' : 'Annual Production', value: d.cost > 0 ? `${(d.cost / d.cappedAnnualSav).toFixed(1)}` : `${(d.annualProd/1000).toFixed(1)}K`, unit: d.cost > 0 ? 'years' : 'kWh' },
+    { label: 'System Size',    value: `${d.systemKw}`,                              unit: 'kW'    },
+    { label: 'Annual Savings', value: `${(d.cappedAnnualSav / 1000).toFixed(1)}K`,  unit: 'THB'   },
+    { label: d.systemCost > 0 ? 'Payback Period' : 'Annual Production',
+      value: d.systemCost > 0 ? `${(d.systemCost / d.cappedAnnualSav).toFixed(1)}` : `${(d.annualProd / 1000).toFixed(1)}K`,
+      unit:  d.systemCost > 0 ? 'years' : 'kWh' },
   ];
-
   document.getElementById('printMeta').innerHTML = meta.map(m => `
     <div class="meta-box">
       <div class="meta-label">${m.label}</div>
@@ -547,30 +644,37 @@ function printProposal() {
 
   const tariffNote = d.tariffMode === 'tou'
     ? `TOU · Peak ${d.peakRate.toFixed(4)} / Off-Peak ${d.offpeakRate.toFixed(4)} THB/kWh`
-    : `Fixed · ${d.effectiveRate.toFixed(2)} THB/kWh`;
+    : `Fixed · ${d.fixedRate.toFixed(2)} THB/kWh`;
 
-  const tariffMethodNote = d.tariffMode === 'tou'
-    ? `TOU mode: ${(d.peakOverlap * 100).toFixed(0)}% solar overlap with peak hours (09:00–22:00), effective rate ${d.effectiveRate.toFixed(4)} THB/kWh`
-    : `Fixed tariff ${d.effectiveRate.toFixed(2)} THB/kWh`;
+  const daytimePctDisp = `${(d.daytimePct * 100).toFixed(0)}%`;
+  const annualDirect   = (d.savingsDirect  * 365).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const annualEvening  = (d.savingsEvening * 365).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const annualNight    = (d.savingsNight   * 365).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
   const rows = [
-    ['System Size', `${d.size} kW`, 'Solar panel capacity'],
-    ['System Type', sysType, ''],
-    ['Tariff Type', tariffNote, ''],
-    ['Daily Production', `${(d.dailyProd).toFixed(1)} kWh/day`, 'Thailand average 4.5 hr/day, 80% efficiency'],
-    ['Annual Production', `${Math.round(d.annualProd).toLocaleString()} kWh/year`, ''],
-    ['Self-Consumption Rate', `${(d.selfCon * 100).toFixed(0)}%`, d.hasBattery ? 'With battery storage' : 'Solar-only estimate'],
-    ['Annual Electricity Savings', `${Math.round(d.cappedAnnualSav).toLocaleString()} THB/year`, tariffMethodNote],
-    ['Monthly Savings', `≈ ${Math.round(d.monthlySav).toLocaleString()} THB/month`, ''],
-    ['Bill Reduction', d.reduction !== null ? `${d.reduction.toFixed(0)}%` : 'N/A', 'Compared to current bill'],
-    d.cost > 0 ? ['Estimated Payback Period', `${(d.cost / d.cappedAnnualSav).toFixed(1)} years`, 'Based on system cost provided'] : null,
-    ['25-Year Savings', `${Math.round(d.lifetimeSav).toLocaleString()} THB`, 'Simplified lifetime estimate'],
-    ['Annual CO₂ Offset', `${(d.co2Annual / 1000).toFixed(2)} tonnes`, 'Thailand grid factor 0.5 kg/kWh'],
+    ['System Size',            `${d.systemKw} kW`,                              'Solar panel capacity'],
+    ['System Type',            sysType,                                          ''],
+    ['Battery Capacity',       d.hasBattery ? `${d.batteryKwh} kWh` : 'None',   d.hasBattery ? `Round-trip efficiency: ${(BATTERY_RT_EFF * 100).toFixed(0)}%` : 'Solar-only'],
+    ['Daytime Consumption',    daytimePctDisp,                                   'Share of load during 09:00–17:00'],
+    ['Tariff Type',            tariffNote,                                        ''],
+    ['Blended Tariff Rate',    `${d.blendedRate.toFixed(4)} THB/kWh`,            'Weighted by consumption time-of-use'],
+    ['Daily Solar Production', `${d.dailySolar.toFixed(1)} kWh/day`,             '4.5 hr/day × 80% efficiency'],
+    ['Annual Production',      `${Math.round(d.annualProd).toLocaleString()} kWh/year`, ''],
+    ['Savings — Direct Solar', `${annualDirect} THB/year`,                       'Daytime self-consumption (09–17)'],
+    d.hasBattery ? ['Savings — Battery (Evening)', `${annualEvening} THB/year`,  'Battery discharge evening peak (17–22)'] : null,
+    d.hasBattery ? ['Savings — Battery (Night)',   `${annualNight} THB/year`,    'Battery discharge night off-peak (22–09)'] : null,
+    ['Annual Electricity Savings', `${Math.round(d.cappedAnnualSav).toLocaleString()} THB/year`, 'Capped at annual electricity bill'],
+    ['Monthly Savings',        `≈ ${Math.round(d.monthlySav).toLocaleString()} THB/month`, ''],
+    ['Bill Reduction',         d.reduction !== null ? `${d.reduction.toFixed(0)}%` : 'N/A', 'Compared to current bill'],
+    d.systemCost > 0 ? ['Estimated Payback Period', `${(d.systemCost / d.cappedAnnualSav).toFixed(1)} years`, 'Based on system cost provided'] : null,
+    ['25-Year Savings',        `${Math.round(d.lifetimeSav).toLocaleString()} THB`, 'Simplified lifetime estimate'],
+    ['Annual CO₂ Offset',      `${(d.co2Annual / 1000).toFixed(2)} tonnes`,      'Thailand grid factor 0.5 kg/kWh'],
   ].filter(Boolean);
 
   const tableRows = rows.map((r, i) => {
-    const highlight = i === rows.length - 3 ? ' class="highlight-row"' : '';
-    return `<tr${highlight}><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td style="color:#6B7A99;">${r[2]}</td></tr>`;
+    const isHighlight = r[0] === 'Annual Electricity Savings';
+    const cls = isHighlight ? ' class="highlight-row"' : '';
+    return `<tr${cls}><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td style="color:#6B7A99;">${r[2]}</td></tr>`;
   }).join('');
 
   document.getElementById('printTableBody').innerHTML = tableRows;
