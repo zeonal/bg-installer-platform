@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Technical FAQ — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">☀️</div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="/roi.html" class="nav-item"><i class="fa-solid fa-calculator"></i> ROI Calculator</a>
+      <a href="/boq.html" class="nav-item"><i class="fa-solid fa-list-check"></i> BOQ Builder</a>
+      <a href="/faq.html" class="nav-item active"><i class="fa-solid fa-circle-question"></i> Technical FAQ</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarName">—</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title"><i class="fa-solid fa-circle-question" style="color:var(--yellow);margin-right:8px;"></i>Technical FAQ</div>
+        <div class="page-subtitle">Answers to common questions about Sigenergy products, installation, and troubleshooting</div>
+      </div>
+      <div id="resultCount" style="font-size:13px;color:var(--subtext);"></div>
+    </div>
+
+    <div class="page-body">
+      <!-- Search -->
+      <div class="search-bar">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-input" id="searchInput"
+               placeholder="Search questions… e.g. 'error code', 'battery', 'commissioning'" oninput="filterFAQ()" />
+      </div>
+
+      <!-- No results -->
+      <div class="no-results" id="noResults" style="display:none;">
+        <i class="fa-solid fa-face-meh" style="font-size:32px;color:var(--border);display:block;margin-bottom:12px;"></i>
+        No questions found matching your search. Try different keywords or contact BG support.
+      </div>
+
+      <!-- FAQ Categories -->
+      <div id="faqContainer"></div>
+
+      <!-- Contact CTA -->
+      <div class="card mt-24" style="background:linear-gradient(135deg, var(--navy), var(--blue));border:none;color:white;" id="contactCard">
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+          <div style="font-size:28px;">📞</div>
+          <div style="flex:1;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Can't find your answer?</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.7);">Contact the Brighten Generation technical support team. We're here to help you design and install with confidence.</div>
+          </div>
+          <a href="mailto:support@brightgeneration.co.th"
+             style="background:var(--yellow);color:var(--navy);padding:11px 22px;border-radius:8px;font-weight:700;font-size:13.5px;text-decoration:none;flex-shrink:0;white-space:nowrap;">
+            Contact BG Support
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token) window.location.href = '/index.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
+
+// ─── FAQ Data ──────────────────────────────────────────────────────────────────
+const FAQ_DATA = [
+  {
+    category: 'Solution Design',
+    icon: 'fa-solid fa-drafting-compass',
+    color: '#1D4ED8',
+    items: [
+      {
+        q: 'How do I size a solar system correctly for a residential customer?',
+        a: 'Start by analyzing the customer\'s electricity bill to determine average monthly consumption (kWh). Divide the daily consumption by the average peak sun hours for their location (Thailand average: 4.5 hr/day). Add 20–30% safety margin for system losses, shading, and future consumption growth. For example, a home using 600 kWh/month (20 kWh/day) would need approximately: 20 ÷ 4.5 ÷ 0.8 (efficiency) ≈ 5.5 kW of solar panels. Round up to the nearest standard system size.'
+      },
+      {
+        q: 'What is the difference between on-grid, partial backup, and full backup/off-grid systems?',
+        a: 'On-grid (Grid-Tied): Solar panels connected directly to the grid. No battery. Works only when the grid is available. Best for: lowering electricity bills.\n\nPartial Backup (Hybrid): Solar + battery, but only selected circuits (e.g., lights, fridge) are backed up during a power outage. Lower cost than full backup. Uses the Energy Gateway with partial backup configuration.\n\nFull Backup / Off-Grid: All loads are backed up. System runs entirely from solar and battery when the grid fails. Requires properly sized battery capacity and the Energy Gateway in full backup mode. Best for: critical facilities or areas with unreliable grid.'
+      },
+      {
+        q: 'When should I recommend a single-phase vs. three-phase inverter?',
+        a: 'Use single-phase (SP) when: The property has a single-phase electricity connection (most homes below 10 kW), the load is primarily residential, or the utility only provides single-phase service. Use three-phase (TP) when: The property has a three-phase connection (common in larger homes, condos, commercial), the system size exceeds 10 kW, or there are three-phase loads such as large air conditioning units or industrial equipment. Always match the Sigenergy Energy Controller phase type to the property\'s grid connection.'
+      },
+      {
+        q: 'How many SigenStor BAT units can I connect to a single Energy Controller?',
+        a: 'The SigenStor Energy Controller supports up to 4 BAT units in a single stack, and up to 3 stacks (12 units total) in a fully expanded configuration. For residential systems, 1–3 BAT units are most common. For larger systems requiring more storage, consult the Sigenergy technical specification sheet or contact BG for engineering guidance.'
+      },
+      {
+        q: 'When is the Sigen Energy Gateway required?',
+        a: 'The Sigen Energy Gateway is required whenever you need: (1) Backup power capability — partial or full backup/off-grid operation, (2) V2X (Vehicle-to-Everything) functionality with the EV DC Charger, (3) Advanced energy management scenarios beyond basic grid-tied operation. For a simple on-grid solar-only system, the Energy Controller connects directly without a Gateway. Check the Sigenergy system design guide for the exact configuration matrix.'
+      },
+    ]
+  },
+  {
+    category: 'Installation & Commissioning',
+    icon: 'fa-solid fa-screwdriver-wrench',
+    color: '#065F46',
+    items: [
+      {
+        q: 'What are the steps to commission a Sigenergy system?',
+        a: 'Follow these steps in order:\n1. Complete physical installation (panels, inverter/controller, battery, wiring, earthing).\n2. Verify all electrical connections match the wiring diagram — check polarity and torque values.\n3. Power on the system (PV first, then AC grid, then battery).\n4. Connect the system to the internet via Ethernet or Wi-Fi through the monitoring portal.\n5. Launch the Sigenergy Installer App (SigenConnect) to run the commissioning wizard.\n6. Set the grid parameters according to Thai PEA/MEA standards.\n7. Configure backup scenarios (if applicable) and verify the system operates correctly.\n8. Register the system in the BG portal and hand over the owner app credentials to the customer.'
+      },
+      {
+        q: 'What safety requirements must be met before energizing the system?',
+        a: 'Before commissioning, verify: (1) Proper DC disconnect (isolator) between panels and inverter, (2) AC main breaker rated correctly for the inverter output, (3) Surge Protection Device (SPD) installed on both DC and AC sides, (4) Earth bonding completed and tested — all metal parts grounded, (5) Correct wiring polarity — DC positive and negative not reversed, (6) Battery wired with correct polarity and correct BMS communication cable, (7) All cable glands and IP ratings maintained, (8) Fire safety clearances respected around battery installation. Never power on the system without completing these checks.'
+      },
+      {
+        q: 'How do I configure the grid parameters for Thailand?',
+        a: 'Thailand uses the following standard grid parameters: Nominal voltage: 220V (single-phase) / 380V (three-phase), Frequency: 50 Hz, Grid standard: PEA/MEA Thailand. In the Sigenergy commissioning app, select "Thailand" from the country/grid standard dropdown. The app will automatically set the correct voltage and frequency limits, anti-islanding protection, and reconnection delay as required by Thai regulations. If your customer is connected to the MEA grid (Bangkok), verify the specific requirements with the local authority as some areas have additional requirements.'
+      },
+      {
+        q: 'What should I verify before handing over the system to the customer?',
+        a: 'Pre-handover checklist: (1) System is visible and operational in the monitoring portal, (2) Solar generation is confirmed (check during daylight hours), (3) Battery is charging and discharging correctly, (4) Backup function tested (if applicable) — switch off grid and confirm loads stay on, (5) Customer owner app is installed and showing real-time data, (6) Customer briefed on how to read their system data, (7) Warranty registration completed with BG, (8) All documentation provided (wiring diagram, warranty cards, emergency contact). Do not complete handover without confirming the system appears online in the monitoring portal.'
+      },
+      {
+        q: 'What are common wiring mistakes to avoid?',
+        a: 'The most common wiring mistakes include: (1) Reversed DC polarity — always double-check + and – terminals before powering on, (2) Incorrect string configuration — too many panels in series exceeding the MPPT voltage limit, (3) Battery communication cable not connected — the BMS cable is separate from the power cable and is required, (4) Missing earth bonding on the battery cabinet, (5) AC output connected to the wrong terminal (critical loads vs. grid), (6) Insufficient cable cross-section for the current rating — follow the Sigenergy cable sizing guide, (7) CT sensor installed backwards — check the arrow direction on the current transformer.'
+      },
+    ]
+  },
+  {
+    category: 'Sigenergy App & Portal',
+    icon: 'fa-solid fa-mobile-screen',
+    color: '#5B21B6',
+    items: [
+      {
+        q: 'How do I register and set up the system in the monitoring portal?',
+        a: 'After commissioning, register the system as follows: (1) Log in to the Sigenergy Installer Portal (installer.sigenergy.com) with your installer credentials, (2) Click "Add System" and enter the serial number from the Energy Controller, (3) Fill in the installation details: customer name, location, system capacity, (4) The system will sync automatically once it connects to the internet (allow up to 10 minutes), (5) Share access with the customer by sending an invitation from within the portal — they will receive an email to set up their owner account. Contact BG if you don\'t have your installer portal credentials yet.'
+      },
+      {
+        q: 'How do I set up the customer\'s Sigenergy owner app?',
+        a: 'The customer app is called "Sigen Home" and is available on iOS and Android. Steps: (1) From the installer portal, go to the system page and click "Share Access", (2) Enter the customer\'s email address and select "Owner" role, (3) The customer receives an invitation email — they tap the link to create their account, (4) Once logged in, the customer can see real-time solar generation, battery state, and energy flows. The owner app shows: live power flow diagram, daily/monthly energy charts, savings summary, and battery charge level. Advise the customer to enable notifications in the app.'
+      },
+      {
+        q: 'How do I update the firmware on a Sigenergy system remotely?',
+        a: 'Firmware updates are managed through the installer portal: (1) Log in to the installer portal and open the system page, (2) Go to "System Settings" → "Firmware", (3) If an update is available, you will see a notification. Click "Update Now", (4) The system will download and apply the update automatically — this typically takes 5–15 minutes, (5) The system will restart once the update is complete. Important: Do not attempt a firmware update during active grid outages or when the customer is relying on battery backup. Always inform the customer before initiating a firmware update as the system will briefly go offline.'
+      },
+      {
+        q: 'How do I set up alerts and notifications for my customer?',
+        a: 'Notification setup: (1) In the Sigen Home app, go to "Settings" → "Notifications", (2) Enable the alerts the customer wants: grid outage detected, battery fully charged, battery critically low, system offline, export limit exceeded, (3) For installer-level alerts (fault codes, offline systems), configure notifications in the installer portal under "My Systems" → "Alert Settings". You can set up email or push notifications for your entire portfolio of systems. This is especially useful for proactive support — you can contact customers before they even notice an issue.'
+      },
+      {
+        q: 'The system shows data from yesterday only — is the monitoring portal updating?',
+        a: 'If the portal is showing stale data: (1) Check internet connectivity at the site — verify the router/modem is working and the system\'s Ethernet or Wi-Fi connection is active, (2) Check the system status LED on the Energy Controller — a solid green typically means online, (3) In the portal, check "System Status" to see the last time data was received, (4) Try restarting the network connection: unplug the Ethernet cable from the Energy Controller, wait 30 seconds, plug back in, (5) If the system remains offline after 30 minutes, check if there is a firewall blocking outbound connections on port 443 (HTTPS) or port 1883 (MQTT). Contact BG support if the issue persists.'
+      },
+    ]
+  },
+  {
+    category: 'Troubleshooting',
+    icon: 'fa-solid fa-triangle-exclamation',
+    color: '#B45309',
+    items: [
+      {
+        q: 'The inverter/controller is showing an error code — what should I do?',
+        a: 'First, locate the error code in the Sigenergy Error Code Reference Guide (available in the BG installer portal under Resources). Common error categories: E01–E09: DC input errors (check panel connections, string voltage/current), E10–E19: Grid/AC errors (check grid voltage, frequency, or anti-islanding settings), E20–E29: Battery communication errors (check BMS cable and battery power), E30+: Temperature/hardware faults (check ventilation and ambient temperature). For any error not listed in the guide, note the full error code and contact BG technical support. Do not attempt to clear hardware faults without guidance.'
+      },
+      {
+        q: 'The battery is not charging — what are the common causes?',
+        a: 'Work through this checklist: (1) BMS cable — confirm the communication cable between the Energy Controller and BAT is properly connected at both ends, (2) Battery power cable — check the DC power terminals are secure and the battery main switch is on, (3) Battery SOC (State of Charge) — if the battery is already at 100%, it won\'t charge further. Check the current SOC in the portal, (4) Charge settings — in the installer portal, verify the charge schedule and mode haven\'t been accidentally set to "Discharge Only" or "Self-Consumption Only", (5) Grid mode — if configured as off-grid only, the battery may not charge from the grid. Verify the charging source settings, (6) Temperature protection — batteries have a thermal cutoff that prevents charging below 5°C or above 45°C. Check the ambient temperature of the battery installation area.'
+      },
+      {
+        q: 'Solar generation appears lower than expected — how do I investigate?',
+        a: 'A systematic approach: (1) Check for shading — even partial shading on one panel can significantly reduce the output of an entire string, (2) Verify panel orientation and tilt angle match the design, (3) Check MPPT operating voltage in the portal — confirm it\'s within the expected range for your string configuration, (4) Inspect panels for soiling (dust, bird droppings) — recommend cleaning if needed, (5) Check the portal for any DC string faults or MPPT alarms, (6) Compare production against the ROI Calculator estimate using the same system size — if production is more than 20% below estimate, escalate to BG technical support with the portal data export. Note: Production is naturally lower on cloudy days — compare against historical data for similar weather conditions.'
+      },
+      {
+        q: 'The backup function is not working — loads go off during a grid outage.',
+        a: 'If backup fails during a grid outage: (1) Verify the correct Sigen Energy Gateway model is installed and configured for backup operation, (2) Check the backup load panel — confirm the backed-up circuit breakers are in the correct sub-panel connected to the Gateway\'s backup output (not the main panel), (3) In the installer portal, confirm the system mode is set to "Partial Backup" or "Full Backup" (not "On-Grid Only"), (4) Check battery SOC — if the battery was empty when the outage occurred, there is no energy to power the backup loads. This is expected behavior — review battery capacity sizing, (5) Test backup manually: with the system online, use the "Grid Off Test" function in the installer portal to simulate a grid outage without physically disconnecting power. This is the safest way to verify backup functionality.'
+      },
+      {
+        q: 'The customer says their electricity bill has not decreased — how do I investigate?',
+        a: 'This is a common post-installation concern. Investigate in order: (1) Verify the CT sensor is installed on the correct cable — it must be on the main grid import cable, not on the solar output, and oriented in the correct direction (check the arrow), (2) Check the portal for actual generation data — confirm the system is producing energy as expected, (3) Review the customer\'s consumption pattern — if they have added new high-consumption appliances (e.g., EV, new air conditioning), the bill may stay the same despite solar savings, (4) Check the generation schedule — if the customer is heavily using electricity in the evenings while panels only generate during the day, and there is no battery, most consumption is still from the grid, (5) Verify meter reading — compare the portal\'s energy import figure against the actual utility meter. If they don\'t match, the CT sensor may be misconfigured. Contact BG if you cannot resolve the discrepancy.'
+      },
+    ]
+  },
+];
+
+// ─── Render FAQ ────────────────────────────────────────────────────────────────
+function renderFAQ() {
+  const container = document.getElementById('faqContainer');
+  container.innerHTML = FAQ_DATA.map((cat, ci) => `
+    <div class="faq-category" data-category="${ci}">
+      <div class="faq-category-header" onclick="toggleCategory(${ci})" id="cat-header-${ci}">
+        <span class="cat-icon"><i class="${cat.icon}"></i></span>
+        <span>${cat.category}</span>
+        <span style="margin-left:8px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;font-size:11px;">${cat.items.length}</span>
+        <i class="fa-solid fa-chevron-down chevron"></i>
+      </div>
+      <div class="faq-items" id="cat-items-${ci}">
+        ${cat.items.map((item, qi) => `
+          <div class="faq-item" data-q="${item.q.toLowerCase()}" data-a="${item.a.toLowerCase()}">
+            <div class="faq-question" onclick="toggleQuestion(this)" id="q-${ci}-${qi}">
+              <span>${item.q}</span>
+              <i class="fa-solid fa-chevron-down q-icon"></i>
+            </div>
+            <div class="faq-answer" id="a-${ci}-${qi}">
+              ${item.a.replace(/\n/g, '<br />')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  // Open first category by default
+  toggleCategory(0);
+}
+
+function toggleCategory(ci) {
+  const header = document.getElementById(`cat-header-${ci}`);
+  const items  = document.getElementById(`cat-items-${ci}`);
+  header.classList.toggle('open');
+  items.classList.toggle('open');
+}
+
+function toggleQuestion(el) {
+  const answerId = el.id.replace('q-', 'a-');
+  const answer   = document.getElementById(answerId);
+  el.classList.toggle('open');
+  answer.classList.toggle('open');
+}
+
+// ─── Search / Filter ───────────────────────────────────────────────────────────
+function filterFAQ() {
+  const query = document.getElementById('searchInput').value.trim().toLowerCase();
+  let totalVisible = 0;
+
+  FAQ_DATA.forEach((cat, ci) => {
+    const items     = document.querySelectorAll(`[data-category="${ci}"] .faq-item`);
+    const header    = document.getElementById(`cat-header-${ci}`);
+    const itemsDiv  = document.getElementById(`cat-items-${ci}`);
+    let catVisible  = 0;
+
+    items.forEach(item => {
+      const qText = item.dataset.q || '';
+      const aText = item.dataset.a || '';
+      const match = !query || qText.includes(query) || aText.includes(query);
+      item.style.display = match ? '' : 'none';
+      if (match) catVisible++;
+    });
+
+    // Show/hide category based on matches
+    const categoryDiv = document.querySelector(`[data-category="${ci}"]`);
+    if (catVisible === 0 && query) {
+      categoryDiv.style.display = 'none';
+    } else {
+      categoryDiv.style.display = '';
+      // Auto-open categories with matches when searching
+      if (query && catVisible > 0) {
+        header.classList.add('open');
+        itemsDiv.classList.add('open');
+        // Auto-open matching questions
+        items.forEach(item => {
+          if (item.style.display !== 'none') {
+            const qEl = item.querySelector('.faq-question');
+            const aEl = item.querySelector('.faq-answer');
+            if (qEl && aEl) { qEl.classList.add('open'); aEl.classList.add('open'); }
+          }
+        });
+      }
+    }
+    totalVisible += catVisible;
+  });
+
+  const noResults = document.getElementById('noResults');
+  const resultCount = document.getElementById('resultCount');
+
+  if (query) {
+    resultCount.textContent = `${totalVisible} result${totalVisible !== 1 ? 's' : ''} for "${query}"`;
+    noResults.style.display = totalVisible === 0 ? 'block' : 'none';
+  } else {
+    resultCount.textContent = '';
+    noResults.style.display = 'none';
+    // Collapse all open questions when search is cleared
+    document.querySelectorAll('.faq-question.open').forEach(q => q.classList.remove('open'));
+    document.querySelectorAll('.faq-answer.open').forEach(a => a.classList.remove('open'));
+    // Reset categories to default (only first open)
+    FAQ_DATA.forEach((_, ci) => {
+      const h = document.getElementById(`cat-header-${ci}`);
+      const d = document.getElementById(`cat-items-${ci}`);
+      if (ci === 0) { h.classList.add('open'); d.classList.add('open'); }
+      else { h.classList.remove('open'); d.classList.remove('open'); }
+    });
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+renderFAQ();
+</script>
+</body>
+</html>

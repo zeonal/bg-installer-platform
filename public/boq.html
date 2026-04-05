@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOQ Builder — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .boq-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    .boq-summary-empty { text-align:center; padding: 40px 20px; color: var(--subtext); }
+    .boq-summary-empty i { font-size: 32px; color: var(--border); display: block; margin-bottom: 12px; }
+    .boq-total-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .boq-total-row:last-child { border-bottom: none; }
+    .item-qty-badge { background: var(--navy); color: white; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+
+    /* Print */
+    @media print {
+      body > .app-layout { display: none !important; }
+      .boq-print { display: block !important; font-family: 'Inter', sans-serif; padding: 40px; color: #1A2B4A; }
+      .print-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 18px; border-bottom: 3px solid #FFD014; }
+      .print-logo { font-size: 22px; font-weight: 800; color: #024286; }
+      .print-logo span { color: #FFD014; }
+      .print-title { font-size: 24px; font-weight: 800; color: #024286; margin-bottom: 20px; }
+      .print-meta { display: flex; gap: 32px; margin-bottom: 24px; font-size: 13px; }
+      .print-meta div { color: #6B7A99; }
+      .print-meta strong { color: #1A2B4A; display: block; }
+      .boq-print table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+      .boq-print th { background: #024286; color: white; padding: 10px 14px; text-align: left; font-size: 12px; }
+      .boq-print td { padding: 10px 14px; border-bottom: 1px solid #E2E8F0; font-size: 13px; }
+      .boq-print tbody tr:last-child td { border-bottom: none; }
+      .boq-print tfoot td { background: #F0F4F8; font-weight: 700; }
+      .print-footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #6B7A99; display: flex; justify-content: space-between; }
+      .print-note { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 12px 14px; font-size: 12px; color: #92400E; margin-bottom: 20px; }
+    }
+
+    .boq-print { display: none; }
+
+    @media (max-width: 900px) {
+      .boq-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">☀️</div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="/roi.html" class="nav-item"><i class="fa-solid fa-calculator"></i> ROI Calculator</a>
+      <a href="/boq.html" class="nav-item active"><i class="fa-solid fa-list-check"></i> BOQ Builder</a>
+      <a href="/faq.html" class="nav-item"><i class="fa-solid fa-circle-question"></i> Technical FAQ</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarName">—</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title"><i class="fa-solid fa-list-check" style="color:var(--yellow);margin-right:8px;"></i>BOQ Builder</div>
+        <div class="page-subtitle">Select Sigenergy components to build your Bill of Quantities</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-outline no-print" onclick="clearAll()">
+          <i class="fa-solid fa-rotate-left"></i> Clear All
+        </button>
+        <button class="btn btn-primary no-print" id="generateBtn" onclick="printBOQ()" disabled>
+          <i class="fa-solid fa-file-pdf"></i> Export BOQ
+        </button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="alert alert-info mb-16">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Select components and set quantities. This BOQ does not include pricing — contact your BG account manager for a quotation.</span>
+      </div>
+
+      <div class="boq-layout">
+        <!-- Product Selector -->
+        <div>
+          <!-- Project Info -->
+          <div class="card mb-16">
+            <div class="card-title" style="margin-bottom:12px;">Project Details</div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Project Name</label>
+                <input type="text" class="form-control" id="projectName" placeholder="e.g. Sukhumvit Home Solar" oninput="updateSummary()" />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-control" id="customerName" placeholder="e.g. Somchai Family" oninput="updateSummary()" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card-title-lg" style="margin-bottom:12px;">
+            <i class="fa-solid fa-cubes" style="color:var(--navy);margin-right:8px;"></i>Product Catalog
+          </div>
+
+          <!-- Product categories -->
+          <div id="productCatalog"></div>
+        </div>
+
+        <!-- BOQ Summary -->
+        <div style="position:sticky;top:76px;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title-lg">BOQ Summary</div>
+              <span id="itemCount" style="font-size:12px;font-weight:600;color:var(--subtext);background:var(--bg);padding:3px 10px;border-radius:12px;">0 items</span>
+            </div>
+
+            <div id="boqEmpty" class="boq-summary-empty">
+              <i class="fa-solid fa-basket-shopping"></i>
+              <p>No components selected yet.<br>Select items from the catalog on the left.</p>
+            </div>
+
+            <div id="boqTable" style="display:none;">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Spec</th>
+                      <th style="text-align:center;">Qty</th>
+                      <th style="text-align:center;">Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="boqTableBody"></tbody>
+                </table>
+              </div>
+
+              <hr class="divider" />
+
+              <div style="font-size:12.5px;font-weight:700;color:var(--subtext);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Summary by Category</div>
+              <div id="categorySummary"></div>
+
+              <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-top:14px;">
+                <div style="display:flex;justify-content:space-between;font-size:13px;">
+                  <span style="font-weight:600;color:var(--navy);">Total Line Items</span>
+                  <span style="font-weight:800;color:var(--navy);" id="totalItems">0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;">
+                  <span style="font-weight:600;color:var(--navy);">Total Units</span>
+                  <span style="font-weight:800;color:var(--navy);" id="totalUnits">0</span>
+                </div>
+              </div>
+
+              <div class="alert alert-warning mt-16">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Prices not included. Contact your BG account manager for official quotation.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Print BOQ Sheet -->
+<div class="boq-print" id="boqPrintSheet">
+  <div class="print-header">
+    <div>
+      <div class="print-logo">Brighten <span>Generation</span></div>
+      <div style="font-size:11px;color:#6B7A99;margin-top:2px;">Authorized Sigenergy Distributor · Thailand</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#6B7A99;">
+      <div id="printDate"></div>
+      <div id="printRef"></div>
+    </div>
+  </div>
+
+  <div class="print-title">Bill of Quantities (BOQ)</div>
+
+  <div class="print-meta">
+    <div><div>Project</div><strong id="printProject">—</strong></div>
+    <div><div>Customer</div><strong id="printCustomer">—</strong></div>
+    <div><div>Prepared By</div><strong id="printPreparedBy">—</strong></div>
+    <div><div>Company</div><strong id="printCompany">—</strong></div>
+  </div>
+
+  <div class="print-note">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <strong>Note:</strong> This BOQ lists components only and does not include pricing. Please contact your Brighten Generation account manager for an official quotation.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px;">#</th>
+        <th>Product Name</th>
+        <th>Specification</th>
+        <th>Category</th>
+        <th style="text-align:center;">Qty</th>
+        <th style="text-align:center;">Unit</th>
+        <th>Unit Price</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody id="printTableBody"></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right;font-weight:700;">Total Items</td>
+        <td id="printTotalQty" style="text-align:center;font-weight:700;"></td>
+        <td colspan="3"></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="print-footer">
+    <div>Brighten Generation Co., Ltd. · Authorized Sigenergy Distributor · Thailand</div>
+    <div>This document is a draft BOQ for quotation purposes only.</div>
+  </div>
+</div>
+
+<script>
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token) window.location.href = '/index.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
+
+// ─── Product Catalog Data ──────────────────────────────────────────────────────
+const CATALOG = [
+  {
+    category: 'SigenStor Energy Controller',
+    icon: 'fa-solid fa-microchip',
+    products: [
+      { id: 'ec-5sp',  name: 'SigenStor EC 5.0 SP',  spec: '5 kW · Single Phase',   unit: 'Unit' },
+      { id: 'ec-10sp', name: 'SigenStor EC 10.0 SP', spec: '10 kW · Single Phase',  unit: 'Unit' },
+      { id: 'ec-5tp',  name: 'SigenStor EC 5.0 TP',  spec: '5 kW · Three Phase',    unit: 'Unit' },
+      { id: 'ec-10tp', name: 'SigenStor EC 10.0 TP', spec: '10 kW · Three Phase',   unit: 'Unit' },
+      { id: 'ec-20tp', name: 'SigenStor EC 20.0 TP', spec: '20 kW · Three Phase',   unit: 'Unit' },
+      { id: 'ec-25tp', name: 'SigenStor EC 25.0 TP', spec: '25 kW · Three Phase',   unit: 'Unit' },
+    ]
+  },
+  {
+    category: 'SigenStor BAT (Battery)',
+    icon: 'fa-solid fa-battery-full',
+    products: [
+      { id: 'bat-6',  name: 'SigenStor BAT 6.0',  spec: '6 kWh capacity',  unit: 'Unit' },
+      { id: 'bat-10', name: 'SigenStor BAT 10.0', spec: '9 kWh capacity',  unit: 'Unit' },
+    ]
+  },
+  {
+    category: 'Sigen Energy Gateway',
+    icon: 'fa-solid fa-network-wired',
+    products: [
+      { id: 'gw-home-sp-12k',  name: 'Gateway Home SP 12k',   spec: 'Single Phase · Residential',     unit: 'Unit' },
+      { id: 'gw-homepro-sp',   name: 'Gateway HomePro SP',    spec: 'Single Phase · Pro',             unit: 'Unit' },
+      { id: 'gw-homepro-sp-f', name: 'Gateway HomePro SP-F',  spec: 'Single Phase · Pro-F',           unit: 'Unit' },
+      { id: 'gw-home-tp-30k',  name: 'Gateway Home TP 30k',   spec: 'Three Phase · Residential',      unit: 'Unit' },
+      { id: 'gw-homepro-tp',   name: 'Gateway HomePro TP',    spec: 'Three Phase · Pro',              unit: 'Unit' },
+      { id: 'gw-c60-2',        name: 'Gateway C60-2',         spec: 'Commercial · 60 kW',             unit: 'Unit' },
+      { id: 'gw-c120-6',       name: 'Gateway C120-6',        spec: 'Commercial · 120 kW',            unit: 'Unit' },
+    ]
+  },
+  {
+    category: 'SigenStor EV DC Charger (V2X)',
+    icon: 'fa-solid fa-charging-station',
+    products: [
+      { id: 'ev-12-5', name: 'EV DC Charger 12.5 kW', spec: '12.5 kW · V2X capable', unit: 'Unit' },
+      { id: 'ev-25',   name: 'EV DC Charger 25 kW',   spec: '25 kW · V2X capable',   unit: 'Unit' },
+    ]
+  },
+  {
+    category: 'Installation Kit & Mounting',
+    icon: 'fa-solid fa-screwdriver-wrench',
+    products: [
+      { id: 'kit-ground', name: 'Ground-Mounted Kit', spec: 'For ground installation',  unit: 'Set' },
+      { id: 'kit-wall',   name: 'Wall-Mounted Kit',   spec: 'For wall installation',    unit: 'Set' },
+    ]
+  },
+  {
+    category: 'Sigen Sensor (Power Sensor + CT)',
+    icon: 'fa-solid fa-wave-square',
+    products: [
+      { id: 'sensor-sp-ct100', name: 'Sigen Sensor SP-CT100', spec: 'Single Phase · CT100', unit: 'Unit' },
+      { id: 'sensor-tp-ct100', name: 'Sigen Sensor TP-CT100', spec: 'Three Phase · CT100',  unit: 'Unit' },
+      { id: 'sensor-tp-ct300', name: 'Sigen Sensor TP-CT300', spec: 'Three Phase · CT300',  unit: 'Unit' },
+    ]
+  },
+];
+
+// ─── State ─────────────────────────────────────────────────────────────────────
+const selection = {}; // { productId: { product, category, qty } }
+
+// ─── Render Catalog ────────────────────────────────────────────────────────────
+function renderCatalog() {
+  const container = document.getElementById('productCatalog');
+  container.innerHTML = CATALOG.map((cat, ci) => `
+    <div class="product-category">
+      <div class="category-header" onclick="toggleCategory(${ci})" id="cat-header-${ci}">
+        <span><i class="${cat.icon}" style="margin-right:8px;"></i>${cat.category}</span>
+        <i class="fa-solid fa-chevron-down"></i>
+      </div>
+      <div class="product-list" id="cat-list-${ci}">
+        ${cat.products.map(p => `
+          <div class="product-row">
+            <input type="checkbox" id="chk-${p.id}" onchange="toggleProduct('${p.id}', '${cat.category}')" />
+            <div class="product-info">
+              <div class="product-name">${p.name}</div>
+              <div class="product-spec">${p.spec}</div>
+            </div>
+            <input type="number" class="qty-input" id="qty-${p.id}" value="1" min="1" max="99"
+                   disabled onchange="updateQty('${p.id}', this.value)" oninput="updateQty('${p.id}', this.value)" />
+            <span style="font-size:12px;color:var(--subtext);width:30px;">${p.unit}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleCategory(ci) {
+  const header = document.getElementById(`cat-header-${ci}`);
+  const list   = document.getElementById(`cat-list-${ci}`);
+  header.classList.toggle('open');
+  list.classList.toggle('open');
+}
+
+// Open first category by default
+function openDefaultCategories() {
+  document.getElementById('cat-header-0').classList.add('open');
+  document.getElementById('cat-list-0').classList.add('open');
+  document.getElementById('cat-header-1').classList.add('open');
+  document.getElementById('cat-list-1').classList.add('open');
+}
+
+// ─── Product Toggle ────────────────────────────────────────────────────────────
+function findProduct(id) {
+  for (const cat of CATALOG) {
+    const p = cat.products.find(x => x.id === id);
+    if (p) return { product: p, category: cat.category };
+  }
+  return null;
+}
+
+function toggleProduct(id, category) {
+  const checked = document.getElementById(`chk-${id}`).checked;
+  const qtyInput = document.getElementById(`qty-${id}`);
+
+  if (checked) {
+    qtyInput.disabled = false;
+    const { product } = findProduct(id);
+    selection[id] = { product, category, qty: parseInt(qtyInput.value) || 1 };
+  } else {
+    qtyInput.disabled = true;
+    delete selection[id];
+  }
+  updateSummary();
+}
+
+function updateQty(id, val) {
+  const qty = Math.max(1, parseInt(val) || 1);
+  document.getElementById(`qty-${id}`).value = qty;
+  if (selection[id]) {
+    selection[id].qty = qty;
+    updateSummary();
+  }
+}
+
+// ─── Update BOQ Summary ────────────────────────────────────────────────────────
+function updateSummary() {
+  const items = Object.values(selection);
+  const totalItems = items.length;
+  const totalUnits = items.reduce((s, i) => s + i.qty, 0);
+
+  document.getElementById('itemCount').textContent = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+  document.getElementById('generateBtn').disabled = totalItems === 0;
+
+  if (totalItems === 0) {
+    document.getElementById('boqEmpty').style.display = 'block';
+    document.getElementById('boqTable').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('boqEmpty').style.display = 'none';
+  document.getElementById('boqTable').style.display = 'block';
+
+  // Group by category for display
+  const byCategory = {};
+  for (const item of items) {
+    if (!byCategory[item.category]) byCategory[item.category] = [];
+    byCategory[item.category].push(item);
+  }
+
+  // Table rows
+  const rows = items.map(item => `
+    <tr>
+      <td><strong>${item.product.name}</strong></td>
+      <td style="font-size:12px;color:var(--subtext);">${item.product.spec}</td>
+      <td style="text-align:center;font-weight:700;">${item.qty}</td>
+      <td style="text-align:center;font-size:12px;color:var(--subtext);">${item.product.unit}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('boqTableBody').innerHTML = rows;
+  document.getElementById('totalItems').textContent = totalItems;
+  document.getElementById('totalUnits').textContent = totalUnits;
+
+  // Category summary
+  const catSummary = Object.entries(byCategory).map(([cat, catItems]) => {
+    const catQty = catItems.reduce((s, i) => s + i.qty, 0);
+    return `
+      <div class="boq-total-row">
+        <span style="font-size:13px;color:var(--text);">${cat}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--navy);">
+          ${catItems.length} line${catItems.length !== 1 ? 's' : ''}
+          <span class="item-qty-badge">${catQty}</span>
+        </span>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('categorySummary').innerHTML = catSummary;
+}
+
+// ─── Clear All ─────────────────────────────────────────────────────────────────
+function clearAll() {
+  if (!confirm('Clear all selected items?')) return;
+  Object.keys(selection).forEach(id => {
+    delete selection[id];
+    const chk = document.getElementById(`chk-${id}`);
+    const qty = document.getElementById(`qty-${id}`);
+    if (chk) { chk.checked = false; }
+    if (qty)  { qty.disabled = true; qty.value = 1; }
+  });
+  updateSummary();
+}
+
+// ─── Print BOQ ─────────────────────────────────────────────────────────────────
+function printBOQ() {
+  const items = Object.values(selection);
+  if (items.length === 0) return;
+
+  const project  = document.getElementById('projectName').value  || 'Untitled Project';
+  const customer = document.getElementById('customerName').value || 'Not specified';
+  const ref      = `BOQ-${Date.now().toString().slice(-6)}`;
+
+  document.getElementById('printDate').textContent        = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('printRef').textContent         = `Ref: ${ref}`;
+  document.getElementById('printProject').textContent     = project;
+  document.getElementById('printCustomer').textContent    = customer;
+  document.getElementById('printPreparedBy').textContent  = userData.full_name || '—';
+  document.getElementById('printCompany').textContent     = userData.company   || '—';
+
+  let totalQty = 0;
+  const tableRows = items.map((item, i) => {
+    totalQty += item.qty;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${item.product.name}</strong></td>
+        <td>${item.product.spec}</td>
+        <td>${item.category}</td>
+        <td style="text-align:center;"><strong>${item.qty}</strong></td>
+        <td style="text-align:center;">${item.product.unit}</td>
+        <td style="color:#6B7A99;font-style:italic;">Per quotation</td>
+        <td style="color:#6B7A99;font-style:italic;">Per quotation</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('printTableBody').innerHTML = tableRows;
+  document.getElementById('printTotalQty').textContent = totalQty;
+  window.print();
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+renderCatalog();
+openDefaultCategories();
+</script>
+</body>
+</html>

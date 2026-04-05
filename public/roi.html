@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ROI Calculator — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    .result-big { font-size: 32px; font-weight: 800; color: var(--yellow); line-height: 1.1; }
+    .result-big-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 3px; }
+    .placeholder-text { color: rgba(255,255,255,0.3); font-size: 14px; text-align: center; padding: 32px 0; }
+    .co2-bar { height: 8px; background: rgba(255,255,255,0.15); border-radius: 99px; overflow:hidden; margin-top:6px; }
+    .co2-fill { height: 100%; background: #10B981; border-radius: 99px; }
+
+    /* Print proposal */
+    .proposal-sheet { display: none; }
+    @media print {
+      .proposal-sheet { display: block !important; }
+      body > .app-layout { display: none !important; }
+      .proposal-sheet {
+        font-family: 'Inter', sans-serif;
+        padding: 40px;
+        color: #1A2B4A;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .proposal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 3px solid #FFD014; padding-bottom: 20px; }
+      .proposal-logo { font-size: 22px; font-weight: 800; color: #024286; }
+      .proposal-logo span { color: #FFD014; }
+      .proposal-title { font-size: 26px; font-weight: 800; color: #024286; margin-bottom: 24px; }
+      .proposal-meta { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 28px; }
+      .meta-box { background: #F0F4F8; border-radius: 8px; padding: 14px; }
+      .meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7A99; margin-bottom: 4px; }
+      .meta-value { font-size: 20px; font-weight: 800; color: #024286; }
+      .meta-unit { font-size: 13px; font-weight: 600; color: #2E639B; }
+      .proposal-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+      .proposal-table th { background: #024286; color: white; padding: 10px 14px; text-align: left; font-size: 12px; }
+      .proposal-table td { padding: 10px 14px; border-bottom: 1px solid #E2E8F0; font-size: 13px; }
+      .proposal-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #6B7A99; display: flex; justify-content: space-between; }
+      .highlight-row td { background: #FFFBEB; font-weight: 700; }
+    }
+
+    @media (max-width: 768px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">☀️</div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="/roi.html" class="nav-item active"><i class="fa-solid fa-calculator"></i> ROI Calculator</a>
+      <a href="/boq.html" class="nav-item"><i class="fa-solid fa-list-check"></i> BOQ Builder</a>
+      <a href="/faq.html" class="nav-item"><i class="fa-solid fa-circle-question"></i> Technical FAQ</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarName">—</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title"><i class="fa-solid fa-calculator" style="color:var(--yellow);margin-right:8px;"></i>ROI Calculator</div>
+        <div class="page-subtitle">Estimate solar savings and payback period for your customer</div>
+      </div>
+      <button class="btn btn-outline no-print" onclick="printProposal()" id="printBtn" style="display:none;">
+        <i class="fa-solid fa-file-pdf"></i> Export Proposal
+      </button>
+    </div>
+
+    <div class="page-body">
+      <div class="alert alert-info mb-16">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Calculations use Thai electricity rate (4.5 THB/kWh) and Thailand average peak sun hours (4.5 hr/day). Results are estimates for proposal purposes.</span>
+      </div>
+
+      <div class="two-col">
+        <!-- Input Panel -->
+        <div>
+          <div class="card">
+            <div class="card-title-lg" style="margin-bottom:20px;">
+              <i class="fa-solid fa-sliders" style="color:var(--navy);margin-right:8px;"></i>Project Parameters
+            </div>
+
+            <!-- Project Info -->
+            <div style="background:var(--bg);border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--subtext);margin-bottom:12px;">Project Info (for proposal)</div>
+              <div class="form-row">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Customer Name</label>
+                  <input type="text" class="form-control" id="customerName" placeholder="e.g. Somchai Family" />
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Project Location</label>
+                  <input type="text" class="form-control" id="projectLocation" placeholder="e.g. Bangkok, Thailand" />
+                </div>
+              </div>
+            </div>
+
+            <!-- System Size -->
+            <div class="form-group">
+              <label class="form-label">System Size (kW) <span style="color:var(--danger)">*</span></label>
+              <input type="number" class="form-control" id="systemSize" placeholder="e.g. 10" min="1" max="10000" step="0.5" oninput="calculate()" />
+              <div class="form-hint">Total solar panel capacity in kilowatts</div>
+            </div>
+
+            <!-- Monthly Bill -->
+            <div class="form-group">
+              <label class="form-label">Monthly Electricity Bill (THB) <span style="color:var(--danger)">*</span></label>
+              <input type="number" class="form-control" id="monthlyBill" placeholder="e.g. 5000" min="0" step="100" oninput="calculate()" />
+              <div class="form-hint">Customer's average monthly electricity bill</div>
+            </div>
+
+            <!-- Battery -->
+            <div class="form-group">
+              <label class="form-label">Battery Storage Included?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" id="btnNoBattery" onclick="setBattery(false)">
+                  <i class="fa-solid fa-solar-panel"></i> Solar Only
+                </button>
+                <button class="toggle-btn active" id="btnYesBattery" onclick="setBattery(true)">
+                  <i class="fa-solid fa-battery-full"></i> Solar + Battery
+                </button>
+              </div>
+              <div class="form-hint" id="batteryHint">Battery increases self-consumption and evening savings.</div>
+            </div>
+
+            <!-- System Cost -->
+            <div class="form-group">
+              <label class="form-label">Estimated System Cost (THB)</label>
+              <input type="number" class="form-control" id="systemCost" placeholder="e.g. 250000" min="0" step="1000" oninput="calculate()" />
+              <div class="form-hint">Used to calculate payback period. Leave blank to skip.</div>
+            </div>
+          </div>
+
+          <!-- Assumptions Reference -->
+          <div class="card mt-16">
+            <div class="card-title" style="margin-bottom:12px;">Calculation Assumptions</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">Electricity tariff</span>
+                <span style="font-weight:600;">4.5 THB/kWh</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">Peak sun hours (Thailand)</span>
+                <span style="font-weight:600;">4.5 hr/day</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">System efficiency factor</span>
+                <span style="font-weight:600;">80%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">Self-consumption (solar only)</span>
+                <span style="font-weight:600;">70%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">Self-consumption (with battery)</span>
+                <span style="font-weight:600;">90%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                <span style="color:var(--subtext);">CO₂ factor (Thailand grid)</span>
+                <span style="font-weight:600;">0.5 kg/kWh</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div>
+          <div class="result-panel" id="resultsPanel">
+            <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:16px;">
+              Estimated Results
+            </div>
+            <div class="placeholder-text" id="resultsPlaceholder">
+              <i class="fa-solid fa-arrow-left" style="font-size:24px;display:block;margin-bottom:10px;color:rgba(255,255,255,0.2);"></i>
+              Enter system size and monthly bill to see results
+            </div>
+
+            <div id="resultsContent" style="display:none;">
+              <div class="result-item">
+                <div class="result-label">Annual Solar Production</div>
+                <div class="result-big" id="annualProduction">—</div>
+                <div class="result-big-sub" id="dailyProduction">— kWh/day</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Estimated Annual Savings</div>
+                <div class="result-big" id="annualSavings">—</div>
+                <div class="result-big-sub" id="monthlySavings">— THB/month</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Bill Reduction</div>
+                <div class="result-big" id="billReduction">—</div>
+                <div class="result-big-sub">of current electricity bill</div>
+              </div>
+              <div class="result-item" id="paybackRow" style="display:none;">
+                <div class="result-label">Estimated Payback Period</div>
+                <div class="result-big" id="paybackPeriod">—</div>
+                <div class="result-big-sub">based on system cost provided</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">25-Year Lifetime Savings</div>
+                <div class="result-big" id="lifetimeSavings">—</div>
+                <div class="result-big-sub">simplified estimate</div>
+              </div>
+              <div class="result-item" style="border-bottom:none;">
+                <div class="result-label">Annual CO₂ Offset</div>
+                <div class="result-big" id="co2Offset">—</div>
+                <div class="result-big-sub">equivalent trees planted per year (approx.)</div>
+                <div class="co2-bar mt-4"><div class="co2-fill" id="co2Bar" style="width:0%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Export note -->
+          <div class="card mt-16" id="exportCard" style="display:none;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:40px;height:40px;background:var(--bg);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fa-solid fa-file-pdf" style="font-size:18px;color:var(--navy);"></i>
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:14px;font-weight:700;color:var(--navy);">Ready to export</div>
+                <div style="font-size:12px;color:var(--subtext);margin-top:2px;">Generate a print-ready proposal to share with your customer</div>
+              </div>
+              <button class="btn btn-primary" onclick="printProposal()">
+                <i class="fa-solid fa-print"></i> Export PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Print Proposal (hidden until print) -->
+<div class="proposal-sheet" id="proposalSheet">
+  <div class="proposal-header">
+    <div>
+      <div class="proposal-logo">Brighten <span>Generation</span></div>
+      <div style="font-size:11px;color:#6B7A99;margin-top:2px;">Authorized Sigenergy Distributor · Thailand</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#6B7A99;">
+      <div id="printDate"></div>
+      <div id="printPrepBy"></div>
+    </div>
+  </div>
+
+  <div class="proposal-title">Solar ROI Summary</div>
+
+  <div style="margin-bottom:20px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr><td style="padding:4px 0;color:#6B7A99;width:140px;">Customer</td><td id="printCustomer" style="font-weight:600;"></td></tr>
+      <tr><td style="padding:4px 0;color:#6B7A99;">Location</td><td id="printLocation" style="font-weight:600;"></td></tr>
+      <tr><td style="padding:4px 0;color:#6B7A99;">System Type</td><td id="printSystemType" style="font-weight:600;"></td></tr>
+    </table>
+  </div>
+
+  <div class="proposal-meta" id="printMeta"></div>
+
+  <table class="proposal-table" id="printTable">
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody id="printTableBody"></tbody>
+  </table>
+
+  <div style="background:#F0F4F8;border-radius:8px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:#6B7A99;line-height:1.6;">
+    <strong style="color:#1A2B4A;">Disclaimer:</strong> These estimates are based on standard Thai electricity tariff (4.5 THB/kWh) and average Thailand solar irradiance (4.5 peak sun hours/day). Actual savings may vary based on consumption patterns, shading, and grid conditions. This document is for proposal purposes only and does not constitute a formal financial guarantee.
+  </div>
+
+  <div class="proposal-footer">
+    <div>Prepared by Brighten Generation | Sigenergy Tier-1 Authorized Distributor</div>
+    <div>www.brightgeneration.co.th</div>
+  </div>
+</div>
+
+<script>
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token) window.location.href = '/index.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
+
+// ─── State ─────────────────────────────────────────────────────────────────────
+let hasBattery = true;
+
+function setBattery(val) {
+  hasBattery = val;
+  document.getElementById('btnYesBattery').classList.toggle('active',  val);
+  document.getElementById('btnNoBattery').classList.toggle('active',  !val);
+  document.getElementById('batteryHint').textContent = val
+    ? 'Battery increases self-consumption and enables evening savings.'
+    : 'Solar-only systems feed excess energy back to the grid.';
+  calculate();
+}
+
+// ─── Calculation ───────────────────────────────────────────────────────────────
+const ELECTRICITY_RATE  = 4.5;   // THB/kWh
+const PEAK_SUN_HOURS    = 4.5;   // hours/day (Thailand average)
+const SYSTEM_EFFICIENCY = 0.80;  // 80%
+const SELF_CON_SOLAR    = 0.70;  // 70% self-consumption without battery
+const SELF_CON_BATTERY  = 0.90;  // 90% with battery
+const CO2_FACTOR        = 0.50;  // kg CO2 per kWh (Thailand grid)
+const TREES_PER_TON_CO2 = 20;    // approximate trees per tonne CO2/year
+
+function fmt(num, decimals = 0) {
+  return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function calculate() {
+  const size  = parseFloat(document.getElementById('systemSize').value);
+  const bill  = parseFloat(document.getElementById('monthlyBill').value);
+  const cost  = parseFloat(document.getElementById('systemCost').value);
+
+  if (!size || size <= 0) {
+    showPlaceholder();
+    return;
+  }
+
+  const selfCon      = hasBattery ? SELF_CON_BATTERY : SELF_CON_SOLAR;
+  const dailyProd    = size * PEAK_SUN_HOURS * SYSTEM_EFFICIENCY;              // kWh/day
+  const annualProd   = dailyProd * 365;                                         // kWh/year
+  const usefulProd   = annualProd * selfCon;                                    // kWh/year (self-consumed)
+  const annualSav    = usefulProd * ELECTRICITY_RATE;                           // THB/year
+  const monthlyBillAnnual = (bill || 0) * 12;
+
+  // Cap savings at annual bill (can't save more than you spend)
+  const cappedAnnualSav = bill > 0 ? Math.min(annualSav, monthlyBillAnnual) : annualSav;
+  const monthlySav  = cappedAnnualSav / 12;
+  const reduction   = bill > 0 ? Math.min(100, (monthlySav / bill) * 100) : null;
+  const lifetimeSav = cappedAnnualSav * 25;
+
+  const co2Annual   = annualProd * CO2_FACTOR;                                  // kg CO2/year
+  const co2Tons     = co2Annual / 1000;
+  const trees       = Math.round(co2Tons * TREES_PER_TON_CO2 * 1000);          // approx trees
+
+  // Update UI
+  document.getElementById('resultsPlaceholder').style.display = 'none';
+  document.getElementById('resultsContent').style.display     = 'block';
+  document.getElementById('exportCard').style.display         = 'block';
+  document.getElementById('printBtn').style.display           = 'flex';
+
+  document.getElementById('annualProduction').textContent = `${fmt(annualProd)} kWh`;
+  document.getElementById('dailyProduction').textContent  = `${fmt(dailyProd, 1)} kWh/day`;
+  document.getElementById('annualSavings').textContent    = `${fmt(cappedAnnualSav)} THB`;
+  document.getElementById('monthlySavings').textContent   = `≈ ${fmt(monthlySav)} THB/month`;
+  document.getElementById('billReduction').textContent    = reduction !== null ? `${fmt(reduction, 0)}%` : 'N/A';
+  document.getElementById('lifetimeSavings').textContent  = `${fmt(lifetimeSav)} THB`;
+  document.getElementById('co2Offset').textContent        = `${fmt(co2Annual / 1000, 1)} tonnes`;
+  document.getElementById('co2Bar').style.width           = `${Math.min(100, (co2Annual / 10000) * 100)}%`;
+
+  // Payback period
+  if (!isNaN(cost) && cost > 0) {
+    const payback = cost / cappedAnnualSav;
+    document.getElementById('paybackPeriod').textContent = `${fmt(payback, 1)} years`;
+    document.getElementById('paybackRow').style.display  = 'block';
+  } else {
+    document.getElementById('paybackRow').style.display  = 'none';
+  }
+
+  // Store for print
+  window._calcData = { size, bill, cost, selfCon, dailyProd, annualProd, usefulProd,
+                        cappedAnnualSav, monthlySav, reduction, lifetimeSav,
+                        co2Annual, co2Tons, trees, hasBattery };
+}
+
+function showPlaceholder() {
+  document.getElementById('resultsPlaceholder').style.display = 'block';
+  document.getElementById('resultsContent').style.display     = 'none';
+  document.getElementById('exportCard').style.display         = 'none';
+  document.getElementById('printBtn').style.display           = 'none';
+}
+
+// ─── Print Proposal ────────────────────────────────────────────────────────────
+function printProposal() {
+  const d = window._calcData;
+  if (!d) return;
+
+  const customer = document.getElementById('customerName').value || 'Not specified';
+  const location = document.getElementById('projectLocation').value || 'Not specified';
+  const sysType  = d.hasBattery ? 'Solar + Battery Storage (Hybrid)' : 'Solar PV (Grid-Tied)';
+
+  document.getElementById('printDate').textContent    = `Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' })}`;
+  document.getElementById('printPrepBy').textContent  = `Prepared by: ${userData.full_name || '—'} · ${userData.company || ''}`;
+  document.getElementById('printCustomer').textContent = customer;
+  document.getElementById('printLocation').textContent = location;
+  document.getElementById('printSystemType').textContent = sysType;
+
+  const meta = [
+    { label: 'System Size', value: `${d.size}`, unit: 'kW' },
+    { label: 'Annual Savings', value: `${(d.cappedAnnualSav/1000).toFixed(1)}K`, unit: 'THB' },
+    { label: d.cost > 0 ? 'Payback Period' : 'Annual Production', value: d.cost > 0 ? `${(d.cost / d.cappedAnnualSav).toFixed(1)}` : `${(d.annualProd/1000).toFixed(1)}K`, unit: d.cost > 0 ? 'years' : 'kWh' },
+  ];
+
+  document.getElementById('printMeta').innerHTML = meta.map(m => `
+    <div class="meta-box">
+      <div class="meta-label">${m.label}</div>
+      <div class="meta-value">${m.value} <span class="meta-unit">${m.unit}</span></div>
+    </div>
+  `).join('');
+
+  const rows = [
+    ['System Size', `${d.size} kW`, 'Solar panel capacity'],
+    ['System Type', sysType, ''],
+    ['Daily Production', `${(d.dailyProd).toFixed(1)} kWh/day`, 'Thailand average 4.5 hr/day'],
+    ['Annual Production', `${Math.round(d.annualProd).toLocaleString()} kWh/year`, ''],
+    ['Self-Consumption Rate', `${(d.selfCon * 100).toFixed(0)}%`, d.hasBattery ? 'With battery storage' : 'Solar-only estimate'],
+    ['Annual Electricity Savings', `${Math.round(d.cappedAnnualSav).toLocaleString()} THB/year`, 'At 4.5 THB/kWh'],
+    ['Monthly Savings', `≈ ${Math.round(d.monthlySav).toLocaleString()} THB/month`, ''],
+    ['Bill Reduction', d.reduction !== null ? `${d.reduction.toFixed(0)}%` : 'N/A', 'Compared to current bill'],
+    d.cost > 0 ? ['Estimated Payback Period', `${(d.cost / d.cappedAnnualSav).toFixed(1)} years`, 'Based on system cost provided'] : null,
+    ['25-Year Savings', `${Math.round(d.lifetimeSav).toLocaleString()} THB`, 'Simplified lifetime estimate'],
+    ['Annual CO₂ Offset', `${(d.co2Annual / 1000).toFixed(2)} tonnes`, 'Thailand grid factor 0.5 kg/kWh'],
+  ].filter(Boolean);
+
+  const tableRows = rows.map((r, i) => {
+    const highlight = i === rows.length - 3 ? ' class="highlight-row"' : '';
+    return `<tr${highlight}><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td style="color:#6B7A99;">${r[2]}</td></tr>`;
+  }).join('');
+
+  document.getElementById('printTableBody').innerHTML = tableRows;
+  window.print();
+}
+</script>
+</body>
+</html>

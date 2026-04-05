@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BG Installer Platform — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #024286;
+      background-image:
+        radial-gradient(circle at 15% 85%, rgba(255,208,20,0.12) 0%, transparent 50%),
+        radial-gradient(circle at 85% 15%, rgba(98,138,180,0.2) 0%, transparent 50%),
+        linear-gradient(160deg, #024286 0%, #012060 60%, #011540 100%);
+      padding: 20px;
+    }
+
+    .login-wrap {
+      display: flex;
+      width: 100%;
+      max-width: 900px;
+      min-height: 540px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+    }
+
+    /* Left panel — branding */
+    .login-brand {
+      flex: 1;
+      background: linear-gradient(160deg, #FFD014 0%, #f5c200 100%);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .brand-top { }
+    .brand-logomark {
+      width: 52px; height: 52px;
+      background: #024286;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 24px;
+      font-size: 26px;
+    }
+
+    .brand-tagline {
+      font-size: 28px;
+      font-weight: 800;
+      color: #024286;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+
+    .brand-desc {
+      font-size: 14px;
+      color: rgba(2,66,134,0.7);
+      line-height: 1.6;
+      max-width: 260px;
+    }
+
+    .brand-features { }
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(2,66,134,0.85);
+      margin-bottom: 10px;
+    }
+    .feature-item i { font-size: 14px; color: #024286; }
+
+    .brand-bottom {
+      font-size: 11px;
+      color: rgba(2,66,134,0.5);
+    }
+
+    .sigenergy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(2,66,134,0.1);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(2,66,134,0.7);
+      margin-bottom: 4px;
+    }
+
+    /* Right panel — form */
+    .login-form-panel {
+      width: 380px;
+      background: #fff;
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .login-header {
+      margin-bottom: 32px;
+    }
+
+    .login-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1A2B4A;
+      margin-bottom: 6px;
+    }
+
+    .login-subtitle {
+      font-size: 13.5px;
+      color: #6B7A99;
+    }
+
+    .form-group { margin-bottom: 18px; }
+
+    .form-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1A2B4A;
+      margin-bottom: 6px;
+    }
+
+    .input-wrap { position: relative; }
+
+    .input-icon {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6B7A99;
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 11px 13px 11px 38px;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1A2B4A;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-control:focus {
+      border-color: #2E639B;
+      box-shadow: 0 0 0 3px rgba(46,99,155,0.12);
+    }
+
+    .error-msg {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #991B1B;
+      margin-bottom: 18px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-msg.show { display: flex; }
+
+    .btn-login {
+      width: 100%;
+      padding: 13px;
+      background: #FFD014;
+      color: #024286;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .btn-login:hover {
+      background: #e6bc00;
+      box-shadow: 0 6px 20px rgba(255,208,20,0.5);
+      transform: translateY(-1px);
+    }
+    .btn-login:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .login-footer {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid #E2E8F0;
+      font-size: 12px;
+      color: #6B7A99;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(2,66,134,0.3);
+      border-top-color: #024286;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 700px) {
+      .login-brand { display: none; }
+      .login-form-panel { width: 100%; }
+      .login-wrap { max-width: 400px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <!-- Branding Panel -->
+  <div class="login-brand">
+    <div class="brand-top">
+      <div class="brand-logomark">☀️</div>
+      <div class="brand-tagline">Brighten<br>Generation</div>
+      <p class="brand-desc">Your all-in-one platform for designing, quoting, and managing solar energy projects with confidence.</p>
+    </div>
+
+    <div class="brand-features">
+      <div class="feature-item"><i class="fa-solid fa-gauge"></i> Installer Dashboard & Tier Tracking</div>
+      <div class="feature-item"><i class="fa-solid fa-calculator"></i> ROI & Savings Calculator</div>
+      <div class="feature-item"><i class="fa-solid fa-list-check"></i> BOQ Builder & Proposal Export</div>
+      <div class="feature-item"><i class="fa-solid fa-circle-question"></i> Technical FAQ & Support</div>
+    </div>
+
+    <div class="brand-bottom">
+      <div class="sigenergy-badge"><i class="fa-solid fa-bolt"></i> Authorized Sigenergy Distributor</div>
+      <div>Tier-1 Partner · Thailand</div>
+    </div>
+  </div>
+
+  <!-- Form Panel -->
+  <div class="login-form-panel">
+    <div class="login-header">
+      <div class="login-title">Welcome back</div>
+      <div class="login-subtitle">Sign in to your installer account</div>
+    </div>
+
+    <div class="error-msg" id="errorMsg">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <span id="errorText">Incorrect username or password.</span>
+    </div>
+
+    <form id="loginForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-user input-icon"></i>
+          <input type="text" id="username" class="form-control"
+                 placeholder="Enter your username" autocomplete="username" required />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-lock input-icon"></i>
+          <input type="password" id="password" class="form-control"
+                 placeholder="Enter your password" autocomplete="current-password" required />
+        </div>
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn">
+        <span id="btnText">Sign In</span>
+      </button>
+    </form>
+
+    <div class="login-footer">
+      Don't have an account? Contact your BG account manager<br>to get set up.
+    </div>
+  </div>
+</div>
+
+<script>
+  // If already logged in, redirect
+  if (localStorage.getItem('bg_token')) {
+    window.location.href = '/dashboard.html';
+  }
+
+  const form     = document.getElementById('loginForm');
+  const loginBtn = document.getElementById('loginBtn');
+  const btnText  = document.getElementById('btnText');
+  const errorMsg = document.getElementById('errorMsg');
+  const errorTxt = document.getElementById('errorText');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.classList.remove('show');
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!username || !password) {
+      errorTxt.textContent = 'Please enter your username and password.';
+      errorMsg.classList.add('show');
+      return;
+    }
+
+    // Loading state
+    loginBtn.disabled = true;
+    btnText.innerHTML = '<div class="spinner"></div> Signing in...';
+
+    try {
+      const res  = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed.');
+      }
+
+      // Store credentials
+      localStorage.setItem('bg_token', data.token);
+      localStorage.setItem('bg_user',  JSON.stringify(data.user));
+
+      window.location.href = '/dashboard.html';
+    } catch (err) {
+      errorTxt.textContent = err.message;
+      errorMsg.classList.add('show');
+      loginBtn.disabled = false;
+      btnText.textContent = 'Sign In';
+    }
+  });
+
+  // Submit on Enter
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') form.dispatchEvent(new Event('submit'));
+  });
+</script>
+</body>
+</html>

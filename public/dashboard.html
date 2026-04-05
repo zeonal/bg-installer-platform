@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">☀️</div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item active">
+        <i class="fa-solid fa-gauge"></i> Dashboard
+      </a>
+      <a href="/roi.html" class="nav-item">
+        <i class="fa-solid fa-calculator"></i> ROI Calculator
+      </a>
+      <a href="/boq.html" class="nav-item">
+        <i class="fa-solid fa-list-check"></i> BOQ Builder
+      </a>
+      <a href="/faq.html" class="nav-item">
+        <i class="fa-solid fa-circle-question"></i> Technical FAQ
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarName">Loading…</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle" id="headerGreeting">Welcome back</div>
+      </div>
+      <span id="adminBadge" style="display:none;" class="tier-badge tier-master">
+        <i class="fa-solid fa-shield-halved"></i> Admin
+      </span>
+    </div>
+
+    <div class="page-body" id="pageBody">
+      <!-- Loading state -->
+      <div class="loading" id="loadingState">
+        <span style="color: var(--subtext); font-size:14px;">Loading your dashboard…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token) window.location.href = '/index.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+
+async function apiFetch(url) {
+  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (res.status === 401 || res.status === 403) { logout(); return null; }
+  return res.json();
+}
+
+// ─── Sidebar population ────────────────────────────────────────────────────────
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
+
+// ─── Tier config ───────────────────────────────────────────────────────────────
+const TIER_CONFIG = {
+  Standard:  { class: 'tier-standard', icon: 'fa-solid fa-seedling',    label: 'Standard',  color: '#4A5568' },
+  Advanced:  { class: 'tier-advanced', icon: 'fa-solid fa-bolt',         label: 'Advanced',  color: '#1D4ED8' },
+  Expert:    { class: 'tier-expert',   icon: 'fa-solid fa-star',         label: 'Expert',    color: '#5B21B6' },
+  Master:    { class: 'tier-master',   icon: 'fa-solid fa-crown',        label: 'Master',    color: '#024286' },
+};
+
+// ─── Render dashboard ──────────────────────────────────────────────────────────
+async function renderDashboard() {
+  const data = await apiFetch('/api/dashboard');
+  if (!data) return;
+
+  const { user, profile, tier, progress } = data;
+  const tc = TIER_CONFIG[tier] || TIER_CONFIG.Standard;
+
+  // Sidebar & header
+  document.getElementById('sidebarName').textContent    = user.full_name;
+  document.getElementById('sidebarCompany').textContent = user.company;
+  document.getElementById('sidebarAvatar').textContent  = user.full_name[0].toUpperCase();
+  document.getElementById('headerGreeting').textContent = `Welcome back, ${user.full_name.split(' ')[0]}`;
+
+  if (user.role === 'admin') {
+    document.getElementById('adminBadge').style.display = 'inline-flex';
+  }
+
+  const kw = profile.total_kw_installed;
+  const kwDisplay = kw >= 1000
+    ? `${(kw / 1000).toFixed(2)} <span class="stat-unit">MW</span>`
+    : `${kw} <span class="stat-unit">kW</span>`;
+
+  const scenarios = [
+    { key: 'scenario_ongrid',         label: 'On-Grid',                   icon: 'fa-solid fa-solar-panel' },
+    { key: 'scenario_partial_backup', label: 'Partial Backup',            icon: 'fa-solid fa-battery-half' },
+    { key: 'scenario_full_backup',    label: 'Full Backup / Off-Grid',    icon: 'fa-solid fa-battery-full' },
+    { key: 'scenario_ci',             label: 'Commercial & Industrial',   icon: 'fa-solid fa-industry' },
+  ];
+
+  const scenariosHTML = scenarios.map(s => {
+    const done = !!profile[s.key];
+    return `
+      <div class="scenario-item ${done ? 'done' : ''}">
+        <div class="scenario-check">
+          <i class="fa-solid ${done ? 'fa-check' : 'fa-minus'}" style="font-size:9px;"></i>
+        </div>
+        <i class="${s.icon}" style="font-size:13px; color:${done ? '#10B981' : '#CBD5E0'};"></i>
+        <span>${s.label}</span>
+      </div>
+    `;
+  }).join('');
+
+  // Next tier requirements hint
+  let nextTierHint = '';
+  if (tier === 'Standard') {
+    nextTierHint = `Commission ${Math.max(0, 10 - profile.sites_commissioned)} more site${10 - profile.sites_commissioned !== 1 ? 's' : ''} and complete 5 backup/off-grid projects to reach Advanced.`;
+  } else if (tier === 'Advanced') {
+    nextTierHint = `Commission ${Math.max(0, 30 - profile.sites_commissioned)} more site${30 - profile.sites_commissioned !== 1 ? 's' : ''} and complete all 3 residential scenarios to reach Expert.`;
+  } else if (tier === 'Expert') {
+    nextTierHint = `Commission ${Math.max(0, 50 - profile.sites_commissioned)} more site${50 - profile.sites_commissioned !== 1 ? 's' : ''} and add a C&I project to reach Master.`;
+  }
+
+  // Quick tool cards
+  const tools = [
+    { href: '/roi.html', icon: 'fa-solid fa-calculator', title: 'ROI Calculator', desc: 'Estimate savings and payback period for a solar project.' },
+    { href: '/boq.html', icon: 'fa-solid fa-list-check', title: 'BOQ Builder',    desc: 'Select Sigenergy components and generate a bill of quantities.' },
+    { href: '/faq.html', icon: 'fa-solid fa-circle-question', title: 'Technical FAQ', desc: 'Find answers to common design, installation, and troubleshooting questions.' },
+  ];
+
+  const toolsHTML = tools.map(t => `
+    <a href="${t.href}" style="text-decoration:none;">
+      <div class="card" style="cursor:pointer; transition: transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.1)';"
+           onmouseout="this.style.transform='';this.style.boxShadow='';">
+        <div style="width:44px;height:44px;background:var(--bg);border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;">
+          <i class="${t.icon}" style="font-size:20px;color:var(--navy);"></i>
+        </div>
+        <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:5px;">${t.title}</div>
+        <div style="font-size:12.5px;color:var(--subtext);line-height:1.5;">${t.desc}</div>
+        <div style="margin-top:14px;font-size:12.5px;font-weight:600;color:var(--blue);">
+          Open <i class="fa-solid fa-arrow-right" style="font-size:11px;"></i>
+        </div>
+      </div>
+    </a>
+  `).join('');
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('pageBody').innerHTML = `
+
+    <!-- Tier Hero Card -->
+    <div class="card mb-24" style="background: linear-gradient(135deg, var(--navy) 0%, #013070 100%); border:none; color:white; position:relative; overflow:hidden;">
+      <div style="position:absolute;top:-30px;right:-30px;width:180px;height:180px;background:rgba(255,208,20,0.07);border-radius:50%;"></div>
+      <div style="position:absolute;bottom:-50px;right:60px;width:120px;height:120px;background:rgba(98,138,180,0.1);border-radius:50%;"></div>
+      <div style="position:relative; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:20px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);margin-bottom:8px;">
+            BG Certified Installer
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+            <div style="font-size:36px;font-weight:800;color:white;">${user.full_name}</div>
+          </div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.65);">${user.company}</div>
+        </div>
+        <div style="text-align:right;">
+          <span class="tier-badge tier-badge-lg ${tc.class}" style="font-size:15px;padding:9px 20px;">
+            <i class="${tc.icon}"></i> ${tc.label}
+          </span>
+        </div>
+      </div>
+
+      <!-- Progress to next tier -->
+      <div style="margin-top:28px; position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);">
+            ${progress.nextTier ? `Progress to ${progress.nextTier}` : 'Top Tier Achieved'}
+          </span>
+          <span style="font-size:12px;font-weight:700;color:var(--yellow);">${progress.percent}%</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:99px;height:8px;overflow:hidden;">
+          <div style="width:${progress.percent}%;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--light-blue),var(--yellow));transition:width 1s ease;"></div>
+        </div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:6px;">${progress.label}</div>
+        ${nextTierHint ? `<div style="font-size:11.5px;color:rgba(255,255,255,0.4);margin-top:4px;">${nextTierHint}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid-4 mb-24">
+      <div class="card text-center">
+        <div class="card-title">Sites Commissioned</div>
+        <div class="stat-value mt-8">${profile.sites_commissioned}</div>
+        <div class="stat-label">Total projects completed</div>
+      </div>
+      <div class="card text-center">
+        <div class="card-title">Backup / Off-Grid Sites</div>
+        <div class="stat-value mt-8">${profile.backup_offgrid_sites}</div>
+        <div class="stat-label">Battery & gateway projects</div>
+      </div>
+      <div class="card text-center">
+        <div class="card-title">Scenarios Completed</div>
+        <div class="stat-value mt-8">
+          ${[profile.scenario_ongrid, profile.scenario_partial_backup, profile.scenario_full_backup, profile.scenario_ci].filter(Boolean).length}
+          <span class="stat-unit" style="font-size:20px;">/ 4</span>
+        </div>
+        <div class="stat-label">Installation types mastered</div>
+      </div>
+      <div class="card text-center">
+        <div class="card-title">Total Installed Capacity</div>
+        <div class="stat-value mt-8">${kwDisplay}</div>
+        <div class="stat-label">Across all projects</div>
+      </div>
+    </div>
+
+    <!-- Scenarios + Tools -->
+    <div class="grid-2 mb-24">
+      <!-- Scenario Completion -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-lg">Scenario Completion</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${scenariosHTML}
+        </div>
+      </div>
+
+      <!-- Tier Structure Reference -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-lg">Tier Structure</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${Object.entries(TIER_CONFIG).map(([name, cfg]) => {
+            const isCurrent = name === tier;
+            const requirements = {
+              Standard: '0 – 9 sites commissioned',
+              Advanced: '10 – 29 sites + 5 backup/off-grid',
+              Expert:   '30 – 49 sites + all residential scenarios',
+              Master:   '50+ sites + residential & C&I scale'
+            };
+            return `
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;
+                          background:${isCurrent ? '#F0F4F8' : 'transparent'};
+                          border:${isCurrent ? '2px solid var(--navy)' : '1px solid var(--border)'};">
+                <span class="tier-badge ${cfg.class}" style="flex-shrink:0;">
+                  <i class="${cfg.icon}"></i> ${name}
+                </span>
+                <span style="font-size:12px;color:var(--subtext);">${requirements[name]}</span>
+                ${isCurrent ? '<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--navy);">← YOU</span>' : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Tools -->
+    <div style="margin-bottom:8px;">
+      <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:16px;">
+        <i class="fa-solid fa-toolbox" style="color:var(--yellow);margin-right:8px;"></i>Your Tools
+      </div>
+      <div class="grid-3">
+        ${toolsHTML}
+      </div>
+    </div>
+
+  `;
+}
+
+renderDashboard();
+</script>
+</body>
+</html>
