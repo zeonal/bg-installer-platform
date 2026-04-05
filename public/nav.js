@@ -78,6 +78,32 @@
     if (e.key === 'Escape') closeDrawer();
   });
 
+  // ── Inject admin nav link for admin users ──────────────────────────────────
+  try {
+    const stored = JSON.parse(localStorage.getItem('bg_user') || '{}');
+    if (stored.role === 'admin') {
+      const sidebarNav = document.querySelector('.sidebar-nav');
+      if (sidebarNav && !sidebarNav.querySelector('a[href="/admin-users.html"]')) {
+        const isActive   = window.location.pathname === '/admin-users.html';
+        const adminBlock = document.createElement('div');
+        adminBlock.innerHTML = `
+          <div class="nav-section-label" style="margin-top:12px;">Admin</div>
+          <a href="/admin-users.html" class="nav-item${isActive ? ' active' : ''}">
+            <i class="fa-solid fa-users-gear"></i> User Management
+          </a>
+        `;
+        // Insert before the "Account" section label if it exists
+        const labels = sidebarNav.querySelectorAll('.nav-section-label');
+        const accountLabel = [...labels].find(el => el.textContent.trim() === 'Account');
+        if (accountLabel) {
+          sidebarNav.insertBefore(adminBlock, accountLabel);
+        } else {
+          sidebarNav.appendChild(adminBlock);
+        }
+      }
+    }
+  } catch (_) {}
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   function escapeHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

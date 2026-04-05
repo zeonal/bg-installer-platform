@@ -103,6 +103,7 @@ seedDatabase();
   `ALTER TABLE users ADD COLUMN address  TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN province TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN bio      TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN active   INTEGER NOT NULL DEFAULT 1`,
 ].forEach(sql => { try { db.exec(sql); } catch (_) {} });
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
@@ -162,6 +163,9 @@ app.post('/api/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password_hash))
     return res.status(401).json({ error: 'Incorrect username or password.' });
 
+  if (user.active === 0)
+    return res.status(403).json({ error: 'Your account has been deactivated. Please contact Brighten Generation.' });
+
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role },
     JWT_SECRET,
@@ -214,6 +218,138 @@ app.get('/api/me', authenticateToken, (req, res) => {
   ).get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   res.json({ user });
+});
+
+// ─── Admin Middleware ──────────────────────────────────────────────────────────
+function requireAdmin(req, res, next) {
+  if (req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' });
+  next();
+}
+
+// ─── Admin: User Management Routes ────────────────────────────────────────────
+
+// GET /api/admin/users — list all users with profile + tier
+app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.username, u.full_name, u.company, u.email, u.phone, u.line_id,
+           u.address, u.province, u.bio, u.role, u.active, u.created_at,
+           p.sites_commissioned, p.backup_offgrid_sites, p.total_kw_installed,
+           p.scenario_ongrid, p.scenario_partial_backup, p.scenario_full_backup, p.scenario_ci
+    FROM users u
+    LEFT JOIN installer_profiles p ON p.user_id = u.id
+    ORDER BY u.created_at DESC
+  `).all();
+
+  const result = users.map(u => ({ ...u, tier: calculateTier(u) }));
+  res.json({ users: result });
+});
+
+// POST /api/admin/users — create a new user
+app.post('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  const { username, password, full_name, company, role, email, phone, line_id } = req.body;
+
+  if (!username || !password || !full_name || !company)
+    return res.status(400).json({ error: 'Username, password, full name, and company are required.' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+  const clean = username.trim().toLowerCase();
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(clean);
+  if (existing) return res.status(409).json({ error: `Username "${clean}" is already taken.` });
+
+  const hash = bcrypt.hashSync(password, 10);
+  const result = db.prepare(`
+    INSERT INTO users (username, password_hash, role, full_name, company, email, phone, line_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    clean,
+    hash,
+    role === 'admin' ? 'admin' : 'installer',
+    full_name.trim(),
+    company.trim(),
+    (email   || '').trim(),
+    (phone   || '').trim(),
+    (line_id || '').trim()
+  );
+
+  // Create a blank installer profile so dashboard never breaks
+  db.prepare('INSERT OR IGNORE INTO installer_profiles (user_id) VALUES (?)').run(result.lastInsertRowid);
+
+  const newUser = db.prepare(
+    'SELECT id, username, full_name, company, role, active, created_at FROM users WHERE id = ?'
+  ).get(result.lastInsertRowid);
+
+  res.status(201).json({ user: { ...newUser, tier: 'Standard' }, message: 'User created successfully.' });
+});
+
+// PUT /api/admin/users/:id — update profile, contact, role
+app.put('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  const { full_name, company, role, email, phone, line_id, address, province, bio } = req.body;
+
+  if (!full_name || !company)
+    return res.status(400).json({ error: 'Full name and company are required.' });
+  if (id === req.user.id && role !== 'admin')
+    return res.status(400).json({ error: 'You cannot change your own role.' });
+
+  db.prepare(`
+    UPDATE users
+    SET full_name=?, company=?, role=?, email=?, phone=?, line_id=?, address=?, province=?, bio=?
+    WHERE id=?
+  `).run(
+    full_name.trim(), company.trim(),
+    role === 'admin' ? 'admin' : 'installer',
+    (email    || '').trim(), (phone   || '').trim(), (line_id || '').trim(),
+    (address  || '').trim(), (province|| '').trim(), (bio     || '').trim(),
+    id
+  );
+
+  const updated = db.prepare(`
+    SELECT u.id, u.username, u.full_name, u.company, u.email, u.phone, u.line_id,
+           u.address, u.province, u.bio, u.role, u.active, u.created_at,
+           p.sites_commissioned, p.backup_offgrid_sites, p.total_kw_installed,
+           p.scenario_ongrid, p.scenario_partial_backup, p.scenario_full_backup, p.scenario_ci
+    FROM users u LEFT JOIN installer_profiles p ON p.user_id = u.id WHERE u.id = ?
+  `).get(id);
+
+  res.json({ user: { ...updated, tier: calculateTier(updated) }, message: 'User updated.' });
+});
+
+// PUT /api/admin/users/:id/password — admin resets any user's password
+app.put('/api/admin/users/:id/password', authenticateToken, requireAdmin, (req, res) => {
+  const { new_password } = req.body;
+  if (!new_password || new_password.length < 8)
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+  const hash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.params.id);
+  res.json({ message: 'Password reset successfully.' });
+});
+
+// PUT /api/admin/users/:id/toggle — activate or deactivate
+app.put('/api/admin/users/:id/toggle', authenticateToken, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  if (id === req.user.id)
+    return res.status(400).json({ error: 'You cannot deactivate your own account.' });
+
+  const user = db.prepare('SELECT active FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const newActive = user.active ? 0 : 1;
+  db.prepare('UPDATE users SET active = ? WHERE id = ?').run(newActive, id);
+  res.json({ active: newActive, message: newActive ? 'User activated.' : 'User deactivated.' });
+});
+
+// DELETE /api/admin/users/:id
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  if (id === req.user.id)
+    return res.status(400).json({ error: 'You cannot delete your own account.' });
+
+  db.prepare('DELETE FROM installer_profiles WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  res.json({ message: 'User deleted successfully.' });
 });
 
 // GET /api/settings — full profile for the settings page
