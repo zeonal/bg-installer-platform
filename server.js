@@ -95,6 +95,16 @@ function seedDatabase() {
 
 seedDatabase();
 
+// ─── Schema Migrations (safe: silently skip if column already exists) ──────────
+[
+  `ALTER TABLE users ADD COLUMN email    TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN phone    TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN line_id  TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN address  TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN province TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN bio      TEXT    NOT NULL DEFAULT ''`,
+].forEach(sql => { try { db.exec(sql); } catch (_) {} });
+
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -204,6 +214,69 @@ app.get('/api/me', authenticateToken, (req, res) => {
   ).get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   res.json({ user });
+});
+
+// GET /api/settings — full profile for the settings page
+app.get('/api/settings', authenticateToken, (req, res) => {
+  const user = db.prepare(
+    `SELECT id, username, full_name, company, email, phone, line_id,
+            address, province, bio, role, created_at
+     FROM users WHERE id = ?`
+  ).get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  res.json({ user });
+});
+
+// PUT /api/settings/profile — update name, company, bio
+app.put('/api/settings/profile', authenticateToken, (req, res) => {
+  const { full_name, company, bio } = req.body;
+  if (!full_name || !full_name.trim())
+    return res.status(400).json({ error: 'Full name is required.' });
+  if (!company || !company.trim())
+    return res.status(400).json({ error: 'Company name is required.' });
+
+  db.prepare(
+    `UPDATE users SET full_name = ?, company = ?, bio = ? WHERE id = ?`
+  ).run(full_name.trim(), company.trim(), (bio || '').trim(), req.user.id);
+
+  const updated = db.prepare(
+    `SELECT id, username, full_name, company, email, phone, line_id,
+            address, province, bio, role FROM users WHERE id = ?`
+  ).get(req.user.id);
+  res.json({ user: updated, message: 'Profile updated successfully.' });
+});
+
+// PUT /api/settings/contact — update email, phone, LINE ID, address, province
+app.put('/api/settings/contact', authenticateToken, (req, res) => {
+  const { email, phone, line_id, address, province } = req.body;
+  db.prepare(
+    `UPDATE users SET email = ?, phone = ?, line_id = ?, address = ?, province = ? WHERE id = ?`
+  ).run(
+    (email    || '').trim(),
+    (phone    || '').trim(),
+    (line_id  || '').trim(),
+    (address  || '').trim(),
+    (province || '').trim(),
+    req.user.id
+  );
+  res.json({ message: 'Contact details updated successfully.' });
+});
+
+// PUT /api/settings/password — change password
+app.put('/api/settings/password', authenticateToken, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    return res.status(400).json({ error: 'Both current and new password are required.' });
+  if (new_password.length < 8)
+    return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+
+  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+  if (!bcrypt.compareSync(current_password, user.password_hash))
+    return res.status(401).json({ error: 'Current password is incorrect.' });
+
+  const newHash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+  res.json({ message: 'Password changed successfully.' });
 });
 
 // ─── Start Server ──────────────────────────────────────────────────────────────

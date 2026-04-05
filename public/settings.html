@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* ── Settings layout ──────────────────────────────────────────────────── */
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ── Section nav (left) ───────────────────────────────────────────────── */
+    .settings-nav {
+      position: sticky;
+      top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .settings-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--subtext);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      text-decoration: none;
+    }
+    .settings-nav-item:hover  { background: var(--bg); color: var(--text); }
+    .settings-nav-item.active { background: var(--navy); color: #fff; font-weight: 600; }
+    .settings-nav-item .nav-icon { width: 18px; text-align: center; font-size: 13px; }
+
+    /* ── Section panels (right) ───────────────────────────────────────────── */
+    .settings-sections { display: flex; flex-direction: column; gap: 24px; }
+
+    .settings-section {
+      scroll-margin-top: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .section-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: var(--navy);
+      color: var(--yellow);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .section-title   { font-size: 16px; font-weight: 700; color: var(--text); }
+    .section-subtitle { font-size: 12.5px; color: var(--subtext); margin-top: 2px; }
+
+    /* Divider between form and button */
+    .form-footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Avatar block ─────────────────────────────────────────────────────── */
+    .avatar-block {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .avatar-lg {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: var(--yellow);
+      font-size: 24px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .avatar-info .name   { font-size: 16px; font-weight: 700; color: var(--text); }
+    .avatar-info .handle { font-size: 12.5px; color: var(--subtext); margin-top: 2px; }
+
+    /* ── Account info grid ────────────────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .info-item {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--subtext); margin-bottom: 4px; }
+    .info-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    /* ── Toast notification ───────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      padding: 13px 20px;
+      border-radius: 10px;
+      font-size: 13.5px; font-weight: 600;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #065F46; color: #D1FAE5; }
+    #toast.error   { background: #7F1D1D; color: #FEE2E2; }
+
+    /* ── Password strength ────────────────────────────────────────────────── */
+    .pw-strength-bar { height: 4px; border-radius: 99px; background: var(--border); margin-top: 6px; overflow: hidden; }
+    .pw-strength-fill { height: 100%; border-radius: 99px; width: 0; transition: width 0.3s, background 0.3s; }
+
+    /* ── Danger zone ──────────────────────────────────────────────────────── */
+    .danger-zone {
+      border: 1.5px solid #DC2626;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .danger-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #DC2626; margin-bottom: 12px; }
+
+    @media (max-width: 768px) {
+      .settings-layout { grid-template-columns: 1fr; }
+      .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+      .info-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon" style="background:transparent;padding:2px;">
+          <img src="/images/bg-logo.svg" style="width:30px;height:30px;object-fit:contain;" alt="BG Logo" />
+        </div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="/roi.html"       class="nav-item"><i class="fa-solid fa-calculator"></i> ROI Calculator</a>
+      <a href="/boq.html"       class="nav-item"><i class="fa-solid fa-list-check"></i> BOQ Builder</a>
+      <a href="/faq.html"       class="nav-item"><i class="fa-solid fa-circle-question"></i> Technical FAQ</a>
+      <div class="nav-section-label" style="margin-top:12px;">Account</div>
+      <a href="/settings.html"  class="nav-item active"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarName">—</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title"><i class="fa-solid fa-gear" style="color:var(--yellow);margin-right:8px;"></i>Settings</div>
+        <div class="page-subtitle">Manage your profile, contact details, and account security</div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="settings-layout">
+
+        <!-- Section nav -->
+        <div class="settings-nav">
+          <a class="settings-nav-item active" href="#profile" onclick="setActive(this)">
+            <span class="nav-icon"><i class="fa-solid fa-user"></i></span> Profile
+          </a>
+          <a class="settings-nav-item" href="#contact" onclick="setActive(this)">
+            <span class="nav-icon"><i class="fa-solid fa-address-card"></i></span> Contact
+          </a>
+          <a class="settings-nav-item" href="#preferences" onclick="setActive(this)">
+            <span class="nav-icon"><i class="fa-solid fa-sliders"></i></span> Preferences
+          </a>
+          <a class="settings-nav-item" href="#security" onclick="setActive(this)">
+            <span class="nav-icon"><i class="fa-solid fa-lock"></i></span> Security
+          </a>
+          <a class="settings-nav-item" href="#account" onclick="setActive(this)">
+            <span class="nav-icon"><i class="fa-solid fa-circle-info"></i></span> Account Info
+          </a>
+        </div>
+
+        <!-- Sections -->
+        <div class="settings-sections">
+
+          <!-- ① Profile ─────────────────────────────────────────────────── -->
+          <div class="card settings-section" id="profile">
+            <div class="section-header">
+              <div class="section-icon"><i class="fa-solid fa-user"></i></div>
+              <div>
+                <div class="section-title">Profile</div>
+                <div class="section-subtitle">Your name, company, and short bio shown on proposals</div>
+              </div>
+            </div>
+
+            <!-- Avatar preview -->
+            <div class="avatar-block">
+              <div class="avatar-lg" id="avatarPreview">?</div>
+              <div class="avatar-info">
+                <div class="name"  id="avatarName">—</div>
+                <div class="handle" id="avatarHandle">@—</div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name <span style="color:var(--danger)">*</span></label>
+                <input type="text" class="form-control" id="profileFullName" placeholder="e.g. Somchai Khongthong" oninput="updateAvatarPreview()" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Company Name <span style="color:var(--danger)">*</span></label>
+                <input type="text" class="form-control" id="profileCompany" placeholder="e.g. SolarThai Co., Ltd." />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Short Bio</label>
+              <textarea class="form-control" id="profileBio" rows="3"
+                placeholder="e.g. Certified Sigenergy installer based in Bangkok with 5+ years in residential and C&amp;I solar projects."
+                style="resize:vertical;"></textarea>
+              <div class="form-hint">Appears on exported proposals. Max 200 characters.</div>
+            </div>
+
+            <div class="form-footer">
+              <span class="form-hint" id="profileSaveHint" style="flex:1;"></span>
+              <button class="btn btn-primary" onclick="saveProfile()">
+                <i class="fa-solid fa-floppy-disk"></i> Save Profile
+              </button>
+            </div>
+          </div>
+
+          <!-- ② Contact & Location ────────────────────────────────────── -->
+          <div class="card settings-section" id="contact">
+            <div class="section-header">
+              <div class="section-icon"><i class="fa-solid fa-address-card"></i></div>
+              <div>
+                <div class="section-title">Contact Details</div>
+                <div class="section-subtitle">How customers and BG can reach you</div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <div style="position:relative;">
+                  <i class="fa-solid fa-envelope" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--subtext);font-size:13px;"></i>
+                  <input type="email" class="form-control" id="contactEmail" placeholder="you@example.com" style="padding-left:34px;" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <div style="position:relative;">
+                  <i class="fa-solid fa-phone" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--subtext);font-size:13px;"></i>
+                  <input type="tel" class="form-control" id="contactPhone" placeholder="e.g. 081-234-5678" style="padding-left:34px;" />
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">LINE ID</label>
+              <div style="position:relative;">
+                <i class="fa-brands fa-line" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#06C755;font-size:15px;"></i>
+                <input type="text" class="form-control" id="contactLineId" placeholder="e.g. @solarthai" style="padding-left:34px;" />
+              </div>
+              <div class="form-hint">LINE is commonly used for customer communication in Thailand</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Business Address</label>
+              <textarea class="form-control" id="contactAddress" rows="2"
+                placeholder="e.g. 123/45 Sukhumvit Road, Khlong Toei, Bangkok 10110"
+                style="resize:vertical;"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Province / Region</label>
+              <select class="form-control" id="contactProvince">
+                <option value="">— Select province —</option>
+                <option>Bangkok</option>
+                <option>Nonthaburi</option>
+                <option>Pathum Thani</option>
+                <option>Samut Prakan</option>
+                <option>Chiang Mai</option>
+                <option>Chiang Rai</option>
+                <option>Khon Kaen</option>
+                <option>Udon Thani</option>
+                <option>Nakhon Ratchasima</option>
+                <option>Ubon Ratchathani</option>
+                <option>Phuket</option>
+                <option>Surat Thani</option>
+                <option>Hat Yai (Songkhla)</option>
+                <option>Rayong</option>
+                <option>Chonburi</option>
+                <option>Pattaya</option>
+                <option>Nakhon Si Thammarat</option>
+                <option>Phitsanulok</option>
+                <option>Lampang</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div class="form-footer">
+              <span class="form-hint" id="contactSaveHint" style="flex:1;"></span>
+              <button class="btn btn-primary" onclick="saveContact()">
+                <i class="fa-solid fa-floppy-disk"></i> Save Contact
+              </button>
+            </div>
+          </div>
+
+          <!-- ③ Preferences ───────────────────────────────────────────── -->
+          <div class="card settings-section" id="preferences">
+            <div class="section-header">
+              <div class="section-icon"><i class="fa-solid fa-sliders"></i></div>
+              <div>
+                <div class="section-title">Calculator Preferences</div>
+                <div class="section-subtitle">Default values pre-filled in the ROI Calculator</div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Default Tariff Type</label>
+                <select class="form-control" id="prefTariff">
+                  <option value="fixed">Fixed Rate</option>
+                  <option value="tou">TOU (Time of Use)</option>
+                </select>
+                <div class="form-hint">Sets the tariff toggle default when you open ROI Calculator</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default Fixed Rate (THB/kWh)</label>
+                <input type="number" class="form-control" id="prefFixedRate" value="4.5" step="0.01" min="0" />
+                <div class="form-hint">Used when Fixed Rate mode is selected</div>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Default Daytime Consumption (%)</label>
+                <input type="number" class="form-control" id="prefDaytimePct" value="35" min="0" max="100" />
+                <div class="form-hint">Typical % of load used 09:00–17:00</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default Customer Location</label>
+                <input type="text" class="form-control" id="prefLocation" placeholder="e.g. Bangkok, Thailand" />
+                <div class="form-hint">Pre-fills the Location field on proposals</div>
+              </div>
+            </div>
+
+            <div class="form-footer">
+              <span class="form-hint" style="flex:1;color:var(--subtext);">Saved locally in your browser</span>
+              <button class="btn btn-primary" onclick="savePreferences()">
+                <i class="fa-solid fa-floppy-disk"></i> Save Preferences
+              </button>
+            </div>
+          </div>
+
+          <!-- ④ Security ──────────────────────────────────────────────── -->
+          <div class="card settings-section" id="security">
+            <div class="section-header">
+              <div class="section-icon"><i class="fa-solid fa-lock"></i></div>
+              <div>
+                <div class="section-title">Security</div>
+                <div class="section-subtitle">Change your login password</div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Current Password</label>
+              <div style="position:relative;">
+                <input type="password" class="form-control" id="pwCurrent" placeholder="Enter your current password" style="padding-right:40px;" />
+                <button type="button" onclick="togglePw('pwCurrent',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--subtext);font-size:13px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">New Password</label>
+              <div style="position:relative;">
+                <input type="password" class="form-control" id="pwNew" placeholder="Minimum 8 characters" style="padding-right:40px;" oninput="checkStrength()" />
+                <button type="button" onclick="togglePw('pwNew',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--subtext);font-size:13px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <div class="pw-strength-bar"><div class="pw-strength-fill" id="pwStrengthFill"></div></div>
+              <div class="form-hint" id="pwStrengthLabel" style="margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Password</label>
+              <div style="position:relative;">
+                <input type="password" class="form-control" id="pwConfirm" placeholder="Re-enter new password" style="padding-right:40px;" oninput="checkMatch()" />
+                <button type="button" onclick="togglePw('pwConfirm',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--subtext);font-size:13px;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-hint" id="pwMatchLabel" style="margin-top:4px;"></div>
+            </div>
+
+            <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:4px;">
+              <div style="font-size:12px;color:var(--subtext);line-height:1.7;">
+                <i class="fa-solid fa-shield-halved" style="color:var(--navy);margin-right:6px;"></i>
+                Password tips: use at least 8 characters, mix letters and numbers, avoid obvious words.
+              </div>
+            </div>
+
+            <div class="form-footer">
+              <span class="form-hint" id="pwSaveHint" style="flex:1;"></span>
+              <button class="btn btn-primary" onclick="savePassword()">
+                <i class="fa-solid fa-key"></i> Change Password
+              </button>
+            </div>
+          </div>
+
+          <!-- ⑤ Account Info (read-only) ──────────────────────────────── -->
+          <div class="card settings-section" id="account">
+            <div class="section-header">
+              <div class="section-icon"><i class="fa-solid fa-circle-info"></i></div>
+              <div>
+                <div class="section-title">Account Information</div>
+                <div class="section-subtitle">Read-only account details managed by Brighten Generation</div>
+              </div>
+            </div>
+
+            <div class="info-grid" id="accountInfoGrid">
+              <div class="info-item">
+                <div class="info-label">Username</div>
+                <div class="info-value" id="infoUsername">—</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Account Type</div>
+                <div class="info-value" id="infoRole">—</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Current Tier</div>
+                <div class="info-value" id="infoTier">—</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Member Since</div>
+                <div class="info-value" id="infoMemberSince">—</div>
+              </div>
+            </div>
+
+            <div class="alert alert-info mt-16" style="margin-bottom:0;">
+              <i class="fa-solid fa-circle-info"></i>
+              <span style="font-size:12.5px;">To update your username or tier status, please contact Brighten Generation at <strong>contact_us@brighten-gen.com</strong> or call <strong>02-124-3437</strong>.</span>
+            </div>
+          </div>
+
+        </div><!-- /settings-sections -->
+      </div><!-- /settings-layout -->
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- Toast -->
+<div id="toast"><i id="toastIcon" class="fa-solid fa-circle-check"></i><span id="toastMsg"></span></div>
+
+<script>
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token) window.location.href = '/index.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+
+// Sidebar
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'U')[0].toUpperCase();
+
+// ─── Load settings on page load ────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const res  = await fetch('/api/settings', { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const u = data.user;
+
+    // Profile section
+    document.getElementById('profileFullName').value = u.full_name || '';
+    document.getElementById('profileCompany').value  = u.company   || '';
+    document.getElementById('profileBio').value      = u.bio       || '';
+
+    // Contact section
+    document.getElementById('contactEmail').value    = u.email    || '';
+    document.getElementById('contactPhone').value    = u.phone    || '';
+    document.getElementById('contactLineId').value   = u.line_id  || '';
+    document.getElementById('contactAddress').value  = u.address  || '';
+    const provinceEl = document.getElementById('contactProvince');
+    if (u.province) {
+      const opt = [...provinceEl.options].find(o => o.value === u.province || o.text === u.province);
+      if (opt) opt.selected = true;
+    }
+
+    // Avatar preview
+    updateAvatarPreview();
+    document.getElementById('avatarName').textContent   = u.full_name || '—';
+    document.getElementById('avatarHandle').textContent = `@${u.username}`;
+
+    // Account info
+    document.getElementById('infoUsername').textContent   = u.username || '—';
+    document.getElementById('infoRole').textContent       = u.role === 'admin' ? 'Administrator' : 'Installer';
+    document.getElementById('infoMemberSince').textContent = u.created_at
+      ? new Date(u.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+      : '—';
+
+    // Fetch tier from dashboard endpoint
+    fetchTier();
+
+  } catch (err) {
+    showToast('Failed to load settings: ' + err.message, 'error');
+  }
+}
+
+async function fetchTier() {
+  try {
+    const res  = await fetch('/api/dashboard', { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (res.ok) {
+      const tierEl = document.getElementById('infoTier');
+      tierEl.innerHTML = `<span class="tier-badge tier-${data.tier.toLowerCase()}" style="padding:3px 10px;border-radius:99px;font-size:12px;">${data.tier}</span>`;
+    }
+  } catch (_) {}
+}
+
+// ─── Avatar preview ────────────────────────────────────────────────────────────
+function updateAvatarPreview() {
+  const name = document.getElementById('profileFullName').value.trim();
+  const initials = name
+    ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+    : '?';
+  document.getElementById('avatarPreview').textContent = initials;
+  document.getElementById('avatarName').textContent    = name || '—';
+}
+
+// ─── Section nav active state ──────────────────────────────────────────────────
+function setActive(el) {
+  document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Highlight nav item on scroll
+const sections = ['profile', 'contact', 'preferences', 'security', 'account'];
+window.addEventListener('scroll', () => {
+  let current = sections[0];
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top <= 120) current = id;
+  });
+  document.querySelectorAll('.settings-nav-item').forEach(item => {
+    item.classList.toggle('active', item.getAttribute('href') === `#${current}`);
+  });
+}, { passive: true });
+
+// ─── Save Profile ──────────────────────────────────────────────────────────────
+async function saveProfile() {
+  const full_name = document.getElementById('profileFullName').value.trim();
+  const company   = document.getElementById('profileCompany').value.trim();
+  const bio       = document.getElementById('profileBio').value.trim();
+
+  if (!full_name) { showToast('Full name is required.', 'error'); return; }
+  if (!company)   { showToast('Company name is required.', 'error'); return; }
+  if (bio.length > 200) { showToast('Bio must be 200 characters or less.', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/settings/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ full_name, company, bio }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    // Update localStorage so sidebar reflects new name immediately
+    const stored = JSON.parse(localStorage.getItem('bg_user') || '{}');
+    stored.full_name = full_name;
+    stored.company   = company;
+    localStorage.setItem('bg_user', JSON.stringify(stored));
+    document.getElementById('sidebarName').textContent    = full_name;
+    document.getElementById('sidebarCompany').textContent = company;
+    document.getElementById('sidebarAvatar').textContent  = full_name[0].toUpperCase();
+    document.getElementById('avatarName').textContent     = full_name;
+
+    showToast('Profile saved successfully!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── Save Contact ──────────────────────────────────────────────────────────────
+async function saveContact() {
+  const email    = document.getElementById('contactEmail').value.trim();
+  const phone    = document.getElementById('contactPhone').value.trim();
+  const line_id  = document.getElementById('contactLineId').value.trim();
+  const address  = document.getElementById('contactAddress').value.trim();
+  const province = document.getElementById('contactProvince').value;
+
+  // Basic email validation
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast('Please enter a valid email address.', 'error'); return;
+  }
+
+  try {
+    const res  = await fetch('/api/settings/contact', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ email, phone, line_id, address, province }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast('Contact details saved!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── Save Preferences (localStorage only) ─────────────────────────────────────
+function savePreferences() {
+  const prefs = {
+    tariff:     document.getElementById('prefTariff').value,
+    fixedRate:  document.getElementById('prefFixedRate').value,
+    daytimePct: document.getElementById('prefDaytimePct').value,
+    location:   document.getElementById('prefLocation').value.trim(),
+  };
+  localStorage.setItem('bg_prefs', JSON.stringify(prefs));
+  showToast('Preferences saved!', 'success');
+}
+
+function loadPreferences() {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('bg_prefs') || '{}');
+    if (prefs.tariff)     document.getElementById('prefTariff').value     = prefs.tariff;
+    if (prefs.fixedRate)  document.getElementById('prefFixedRate').value  = prefs.fixedRate;
+    if (prefs.daytimePct) document.getElementById('prefDaytimePct').value = prefs.daytimePct;
+    if (prefs.location)   document.getElementById('prefLocation').value   = prefs.location;
+  } catch (_) {}
+}
+
+// ─── Password ──────────────────────────────────────────────────────────────────
+function togglePw(id, btn) {
+  const input = document.getElementById(id);
+  const isText = input.type === 'text';
+  input.type = isText ? 'password' : 'text';
+  btn.querySelector('i').className = isText ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+}
+
+function checkStrength() {
+  const pw    = document.getElementById('pwNew').value;
+  const fill  = document.getElementById('pwStrengthFill');
+  const label = document.getElementById('pwStrengthLabel');
+  let score = 0;
+  if (pw.length >= 8)             score++;
+  if (pw.length >= 12)            score++;
+  if (/[A-Z]/.test(pw))          score++;
+  if (/[0-9]/.test(pw))          score++;
+  if (/[^A-Za-z0-9]/.test(pw))  score++;
+
+  const levels = [
+    { w: '0%',   bg: 'transparent',  text: '' },
+    { w: '25%',  bg: '#DC2626',      text: 'Weak' },
+    { w: '50%',  bg: '#F59E0B',      text: 'Fair' },
+    { w: '75%',  bg: '#10B981',      text: 'Good' },
+    { w: '100%', bg: '#059669',      text: 'Strong' },
+  ];
+  const lvl = score === 0 ? 0 : score <= 1 ? 1 : score <= 2 ? 2 : score <= 3 ? 3 : 4;
+  fill.style.width      = levels[lvl].w;
+  fill.style.background = levels[lvl].bg;
+  label.textContent     = levels[lvl].text;
+  label.style.color     = levels[lvl].bg;
+}
+
+function checkMatch() {
+  const pw1   = document.getElementById('pwNew').value;
+  const pw2   = document.getElementById('pwConfirm').value;
+  const label = document.getElementById('pwMatchLabel');
+  if (!pw2) { label.textContent = ''; return; }
+  if (pw1 === pw2) {
+    label.textContent = '✓ Passwords match';
+    label.style.color = '#10B981';
+  } else {
+    label.textContent = '✗ Passwords do not match';
+    label.style.color = '#DC2626';
+  }
+}
+
+async function savePassword() {
+  const current  = document.getElementById('pwCurrent').value;
+  const newPw    = document.getElementById('pwNew').value;
+  const confirm  = document.getElementById('pwConfirm').value;
+
+  if (!current)              { showToast('Please enter your current password.', 'error'); return; }
+  if (!newPw)                { showToast('Please enter a new password.', 'error'); return; }
+  if (newPw.length < 8)      { showToast('New password must be at least 8 characters.', 'error'); return; }
+  if (newPw !== confirm)     { showToast('New passwords do not match.', 'error'); return; }
+  if (newPw === current)     { showToast('New password must be different from current.', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/settings/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ current_password: current, new_password: newPw }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    // Clear fields
+    ['pwCurrent', 'pwNew', 'pwConfirm'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('pwStrengthFill').style.width = '0';
+    document.getElementById('pwStrengthLabel').textContent = '';
+    document.getElementById('pwMatchLabel').textContent    = '';
+
+    showToast('Password changed successfully!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = msg;
+  icon.className = type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation';
+  toast.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+loadSettings();
+loadPreferences();
+</script>
+</body>
+</html>
