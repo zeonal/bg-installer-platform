@@ -370,6 +370,12 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
 
 // GET /api/admin/tier-data — all installers with full profile + tier
 app.get('/api/admin/tier-data', authenticateToken, requireAdmin, (req, res) => {
+  // Ensure every installer has a profile row (handles users created before this route existed)
+  db.prepare(`
+    INSERT OR IGNORE INTO installer_profiles (user_id)
+    SELECT id FROM users WHERE role = 'installer'
+  `).run();
+
   const rows = db.prepare(`
     SELECT u.id, u.username, u.full_name, u.company, u.active,
            p.residential_sites, p.ci_sites, p.backup_offgrid_sites, p.total_kw_installed,

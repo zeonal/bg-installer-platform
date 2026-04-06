@@ -966,6 +966,11 @@ document.addEventListener('keydown', e => {
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
 loadData();
+
+// Reload data when navigating back via browser history so new users always appear
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) loadData(); // page was restored from bfcache
+});
 </script>
 <script src="/nav.js"></script>
 </body>
