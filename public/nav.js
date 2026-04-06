@@ -85,11 +85,15 @@
       const sidebarNav = document.querySelector('.sidebar-nav');
       if (sidebarNav && !sidebarNav.querySelector('a[href="/admin-users.html"]')) {
         const isActive   = window.location.pathname === '/admin-users.html';
+        const isTierActive  = window.location.pathname === '/admin-tier.html';
         const adminBlock = document.createElement('div');
         adminBlock.innerHTML = `
           <div class="nav-section-label" style="margin-top:12px;">Admin</div>
           <a href="/admin-users.html" class="nav-item${isActive ? ' active' : ''}">
             <i class="fa-solid fa-users-gear"></i> User Management
+          </a>
+          <a href="/admin-tier.html" class="nav-item${isTierActive ? ' active' : ''}">
+            <i class="fa-solid fa-chart-bar"></i> Tier Management
           </a>
         `;
         // Insert before the "Account" section label if it exists

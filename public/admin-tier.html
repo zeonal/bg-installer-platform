@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tier Management — BG Installer Platform</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* ── Tier stats bar ───────────────────────────────────────────────────── */
+    .tier-stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .tier-stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .tier-stat-val   { font-size: 28px; font-weight: 800; line-height: 1; }
+    .tier-stat-label { font-size: 11.5px; color: var(--subtext); margin-top: 4px; }
+
+    /* ── Toolbar ──────────────────────────────────────────────────────────── */
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .search-wrap { position: relative; flex: 1; min-width: 180px; }
+    .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--subtext); font-size: 13px; }
+    .search-wrap input { padding-left: 34px; width: 100%; }
+
+    /* ── Table ────────────────────────────────────────────────────────────── */
+    .tier-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+    table.tier-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tier-table thead th {
+      background: var(--bg); color: var(--subtext);
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 10px 12px; text-align: left;
+      white-space: nowrap; border-bottom: 1px solid var(--border);
+    }
+    .tier-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
+    .tier-table tbody tr:last-child { border-bottom: none; }
+    .tier-table tbody tr:hover { background: var(--bg); }
+    .tier-table td { padding: 11px 12px; vertical-align: middle; }
+
+    /* User cell */
+    .user-cell { display: flex; align-items: center; gap: 9px; }
+    .u-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: var(--yellow); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .u-name    { font-weight: 600; color: var(--text); font-size: 13px; }
+    .u-company { font-size: 11px; color: var(--subtext); margin-top: 1px; }
+
+    /* Number cells */
+    .num-cell { font-size: 15px; font-weight: 700; color: var(--text); text-align: center; }
+    .num-cell.dim { color: var(--subtext); font-weight: 500; }
+
+    /* Scenario dots */
+    .scenario-dots { display: flex; gap: 5px; align-items: center; }
+    .s-dot {
+      width: 22px; height: 22px; border-radius: 6px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0;
+      display: flex; align-items: center; justify-content: center;
+      title: '';
+    }
+    .s-dot.on  { background: #064E3B; color: #6EE7B7; }
+    .s-dot.off { background: var(--bg); color: var(--subtext); border: 1px solid var(--border); }
+
+    /* Tier badge */
+    .tier-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 99px;
+      font-size: 11px; font-weight: 700;
+    }
+    .tp-standard { background: #374151; color: #9CA3AF; }
+    .tp-advanced { background: #134E4A; color: #5EEAD4; }
+    .tp-expert   { background: #451A03; color: #FCD34D; }
+    .tp-master   { background: #1E3A5F; color: var(--yellow); }
+
+    /* Updated cell */
+    .updated-cell { font-size: 11px; color: var(--subtext); line-height: 1.5; }
+    .updated-cell .by { font-weight: 600; color: var(--text); }
+
+    /* Action button */
+    .edit-btn {
+      background: none; border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 12px;
+      font-size: 12px; font-weight: 600; color: var(--subtext);
+      cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.13s;
+    }
+    .edit-btn:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 48px; color: var(--subtext); }
+    .empty-state i { font-size: 40px; margin-bottom: 12px; display: block; opacity: 0.3; }
+
+    /* ── Slide-over (edit panel) ──────────────────────────────────────────── */
+    .slideover { display: none; position: fixed; inset: 0; z-index: 2000; }
+    .slideover.open { display: flex; }
+    .slideover-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(2px); }
+    .slideover-panel {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 500px; max-width: 100%;
+      background: var(--card); display: flex; flex-direction: column;
+      box-shadow: -8px 0 40px rgba(0,0,0,0.3);
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    }
+    .slideover.open .slideover-panel { transform: translateX(0); }
+    .slideover-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .slideover-title  { font-size: 16px; font-weight: 700; color: var(--text); }
+    .slideover-sub    { font-size: 12px; color: var(--subtext); margin-top: 2px; }
+    .slideover-close  { background: none; border: none; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--subtext); font-size: 15px; transition: background 0.13s; }
+    .slideover-close:hover { background: var(--bg); color: var(--text); }
+    .slideover-body   { flex: 1; overflow-y: auto; padding: 22px 24px; }
+    .slideover-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+
+    /* Tier preview inside edit panel */
+    .tier-preview {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--bg); border-radius: 10px; padding: 14px;
+      margin-bottom: 20px;
+    }
+    .tier-preview-label { font-size: 12px; color: var(--subtext); }
+    .tier-preview-val   { font-size: 18px; font-weight: 800; }
+
+    /* Section heading */
+    .edit-section-label {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--subtext);
+      margin: 18px 0 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .edit-section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* Number input grid */
+    .num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Scenario checkbox grid */
+    .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .scenario-check {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 9px; padding: 11px 13px; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .scenario-check input[type=checkbox] { display: none; }
+    .scenario-check .check-box {
+      width: 18px; height: 18px; border-radius: 5px;
+      border: 2px solid var(--border); background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all 0.15s;
+    }
+    .scenario-check input:checked ~ * .check-box,
+    .scenario-check.checked .check-box {
+      background: #10B981; border-color: #10B981; color: #fff;
+    }
+    .scenario-check.checked { border-color: #10B981; background: rgba(16,185,129,0.06); }
+    .scenario-check .check-label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+    .scenario-check .check-sub   { font-size: 10.5px; color: var(--subtext); margin-top: 1px; }
+
+    /* ── Import modal ─────────────────────────────────────────────────────── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); z-index: 2000; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--card); border-radius: 16px; width: 100%; max-width: 780px; box-shadow: 0 24px 64px rgba(0,0,0,0.4); }
+    .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-title  { font-size: 16px; font-weight: 700; color: var(--text); }
+    .modal-close  { background: none; border: none; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--subtext); font-size: 15px; transition: background 0.13s; }
+    .modal-close:hover { background: var(--bg); }
+    .modal-body   { padding: 20px 24px; }
+    .modal-footer { padding: 14px 24px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px; padding: 36px 20px;
+      text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--yellow); background: rgba(255,208,20,0.04); }
+    .drop-zone i { font-size: 32px; color: var(--subtext); margin-bottom: 10px; display: block; }
+    .drop-zone .dz-title { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .drop-zone .dz-sub   { font-size: 12.5px; color: var(--subtext); }
+    #csvFileInput { display: none; }
+
+    /* Preview table */
+    .preview-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-top: 14px; }
+    table.preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .preview-table th { background: var(--bg); padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--subtext); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .preview-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .preview-table tr:last-child td { border-bottom: none; }
+    .match-yes { color: #10B981; font-weight: 700; }
+    .match-no  { color: #EF4444; font-weight: 700; }
+
+    /* Import summary */
+    .import-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .import-chip { padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+    .chip-total   { background: var(--bg); color: var(--text); }
+    .chip-match   { background: #064E3B; color: #6EE7B7; }
+    .chip-nomatch { background: #7F1D1D; color: #FCA5A5; }
+
+    /* ── Toast ────────────────────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 28px; right: 28px; padding: 13px 20px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 9999; opacity: 0; transform: translateY(12px); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #065F46; color: #D1FAE5; }
+    #toast.error   { background: #7F1D1D; color: #FEE2E2; }
+
+    @media (max-width: 900px) { .tier-stats { grid-template-columns: repeat(3,1fr); } }
+    @media (max-width: 640px) { .tier-stats { grid-template-columns: repeat(2,1fr); } .num-grid, .scenario-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="brand-icon" style="background:transparent;padding:2px;">
+          <img src="/images/bg-logo.svg" style="width:30px;height:30px;object-fit:contain;" alt="BG Logo" />
+        </div>
+        <div>
+          <div class="brand-name">Brighten Generation</div>
+          <div class="brand-sub">Installer Platform</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="/dashboard.html" class="nav-item"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+      <a href="/roi.html"       class="nav-item"><i class="fa-solid fa-calculator"></i> ROI Calculator</a>
+      <a href="/boq.html"       class="nav-item"><i class="fa-solid fa-list-check"></i> BOQ Builder</a>
+      <a href="/faq.html"       class="nav-item"><i class="fa-solid fa-circle-question"></i> Technical FAQ</a>
+      <div class="nav-section-label" style="margin-top:12px;">Admin</div>
+      <a href="/admin-users.html" class="nav-item"><i class="fa-solid fa-users-gear"></i> User Management</a>
+      <a href="/admin-tier.html"  class="nav-item active"><i class="fa-solid fa-chart-bar"></i> Tier Management</a>
+      <div class="nav-section-label" style="margin-top:12px;">Account</div>
+      <a href="/settings.html"    class="nav-item"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+        <div>
+          <div class="sidebar-user-name"    id="sidebarName">—</div>
+          <div class="sidebar-user-company" id="sidebarCompany"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title"><i class="fa-solid fa-chart-bar" style="color:var(--yellow);margin-right:8px;"></i>Tier Management</div>
+        <div class="page-subtitle">Update installer project data — tier levels recalculate automatically</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline" onclick="downloadCSV()">
+          <i class="fa-solid fa-download"></i> Export CSV
+        </button>
+        <button class="btn btn-primary" onclick="openImport()">
+          <i class="fa-solid fa-upload"></i> Import CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Tier breakdown stats -->
+      <div class="tier-stats" id="tierStats">
+        <div class="tier-stat"><div class="tier-stat-val" id="statStandard" style="color:#9CA3AF;">—</div><div class="tier-stat-label">Standard</div></div>
+        <div class="tier-stat"><div class="tier-stat-val" id="statAdvanced" style="color:#5EEAD4;">—</div><div class="tier-stat-label">Advanced</div></div>
+        <div class="tier-stat"><div class="tier-stat-val" id="statExpert"   style="color:#FCD34D;">—</div><div class="tier-stat-label">Expert</div></div>
+        <div class="tier-stat"><div class="tier-stat-val" id="statMaster"   style="color:var(--yellow);">—</div><div class="tier-stat-label">Master</div></div>
+        <div class="tier-stat"><div class="tier-stat-val" id="statKw"       style="color:var(--text);font-size:20px;">—</div><div class="tier-stat-label">Total kW Installed</div></div>
+      </div>
+
+      <!-- How tier is calculated -->
+      <div class="alert alert-info mb-16" style="margin-bottom:16px;">
+        <i class="fa-solid fa-circle-info"></i>
+        <span style="font-size:12.5px;">
+          <strong>Tier rules:</strong>
+          Standard → 0–9 sites &nbsp;·&nbsp;
+          <span style="color:#5EEAD4;">Advanced</span> → 10+ sites &amp; 5+ backup sites &nbsp;·&nbsp;
+          <span style="color:#FCD34D;">Expert</span> → 30+ sites &amp; all 3 scenarios &nbsp;·&nbsp;
+          <span style="color:var(--yellow);">Master</span> → 50+ sites &amp; C&amp;I scenario.
+          Tier updates immediately when you save.
+        </span>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" class="form-control" id="searchInput" placeholder="Search by name or company…" oninput="renderTable()" />
+        </div>
+        <select class="form-control" style="min-width:130px;" id="filterTier" onchange="renderTable()">
+          <option value="">All Tiers</option>
+          <option value="Standard">Standard</option>
+          <option value="Advanced">Advanced</option>
+          <option value="Expert">Expert</option>
+          <option value="Master">Master</option>
+        </select>
+      </div>
+
+      <!-- Table -->
+      <div class="tier-table-wrap">
+        <table class="tier-table">
+          <thead>
+            <tr>
+              <th>Installer</th>
+              <th style="text-align:center;" title="Residential projects">Residential</th>
+              <th style="text-align:center;" title="C&I projects">C&amp;I</th>
+              <th style="text-align:center;" title="Total sites commissioned">Total Sites</th>
+              <th style="text-align:center;" title="Backup / off-grid sites">Backup</th>
+              <th style="text-align:center;" title="Total kW installed">kW</th>
+              <th title="On-Grid · Partial Backup · Full Backup · C&I">Scenarios</th>
+              <th>Tier</th>
+              <th>Last Updated</th>
+              <th style="text-align:right;">Edit</th>
+            </tr>
+          </thead>
+          <tbody id="tierTableBody">
+            <tr><td colspan="10"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i>Loading…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- Edit slide-over                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="slideover" id="editSlideover">
+  <div class="slideover-overlay" onclick="closeSlideover()"></div>
+  <div class="slideover-panel">
+    <div class="slideover-header">
+      <div>
+        <div class="slideover-title" id="editTitle">Edit Tier Data</div>
+        <div class="slideover-sub"   id="editSub">—</div>
+      </div>
+      <button class="slideover-close" onclick="closeSlideover()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="slideover-body">
+      <input type="hidden" id="editUserId" />
+
+      <!-- Live tier preview -->
+      <div class="tier-preview">
+        <div>
+          <div class="tier-preview-label" style="text-align:center;margin-bottom:4px;">Calculated Tier</div>
+          <div class="tier-preview-val" id="livetierlabel" style="text-align:center;">Standard</div>
+        </div>
+        <div style="flex:1;margin-left:20px;font-size:11.5px;color:var(--subtext);" id="liveTierHint"></div>
+      </div>
+
+      <!-- Site counts -->
+      <div class="edit-section-label"><i class="fa-solid fa-building" style="color:var(--navy);"></i>Project Counts</div>
+      <div class="num-grid">
+        <div class="form-group">
+          <label class="form-label">Residential Projects</label>
+          <input type="number" class="form-control" id="eResidential" min="0" step="1" value="0" oninput="livePreview()" />
+          <div class="form-hint">On-grid / hybrid home installs</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">C&amp;I Projects</label>
+          <input type="number" class="form-control" id="eCi" min="0" step="1" value="0" oninput="livePreview()" />
+          <div class="form-hint">Commercial &amp; Industrial sites<br><span style="color:#10B981;font-size:10.5px;">Auto-enables C&amp;I scenario if &gt; 0</span></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Backup / Off-Grid Sites</label>
+          <input type="number" class="form-control" id="eBackup" min="0" step="1" value="0" oninput="livePreview()" />
+          <div class="form-hint">Sites with battery backup or off-grid</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total kW Installed</label>
+          <input type="number" class="form-control" id="eKw" min="0" step="0.1" value="0" oninput="livePreview()" />
+          <div class="form-hint">Cumulative installed capacity</div>
+        </div>
+      </div>
+
+      <!-- Total sites display -->
+      <div style="background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12.5px;color:var(--subtext);">Total sites commissioned (Residential + C&amp;I)</span>
+        <span style="font-weight:800;font-size:16px;color:var(--text);" id="eTotalSites">0</span>
+      </div>
+
+      <!-- Scenarios -->
+      <div class="edit-section-label" style="margin-top:20px;"><i class="fa-solid fa-check-double" style="color:var(--navy);"></i>Scenario Completion</div>
+      <div class="scenario-grid">
+        <label class="scenario-check" id="scOG" onclick="toggleScenario('sOG','scOG')">
+          <input type="checkbox" id="sOG" onchange="livePreview()" />
+          <div class="check-box"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
+          <div>
+            <div class="check-label">On-Grid</div>
+            <div class="check-sub">Grid-tied solar system</div>
+          </div>
+        </label>
+        <label class="scenario-check" id="scPB" onclick="toggleScenario('sPB','scPB')">
+          <input type="checkbox" id="sPB" onchange="livePreview()" />
+          <div class="check-box"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
+          <div>
+            <div class="check-label">Partial Backup</div>
+            <div class="check-sub">Selected loads backed up</div>
+          </div>
+        </label>
+        <label class="scenario-check" id="scFB" onclick="toggleScenario('sFB','scFB')">
+          <input type="checkbox" id="sFB" onchange="livePreview()" />
+          <div class="check-box"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
+          <div>
+            <div class="check-label">Full Backup / Off-Grid</div>
+            <div class="check-sub">Whole-home or off-grid</div>
+          </div>
+        </label>
+        <label class="scenario-check" id="scCI" onclick="toggleScenario('sCI','scCI')">
+          <input type="checkbox" id="sCI" onchange="livePreview()" />
+          <div class="check-box"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
+          <div>
+            <div class="check-label">Commercial &amp; Industrial</div>
+            <div class="check-sub">C&amp;I scale deployment</div>
+          </div>
+        </label>
+      </div>
+
+      <!-- Notes -->
+      <div class="edit-section-label" style="margin-top:20px;"><i class="fa-solid fa-note-sticky" style="color:var(--navy);"></i>Admin Notes</div>
+      <div class="form-group" style="margin-bottom:0;">
+        <textarea class="form-control" id="eNotes" rows="3" placeholder="e.g. Verified via site reports — Q1 2026. Awaiting CI certificate." style="resize:vertical;"></textarea>
+        <div class="form-hint">Internal notes — not visible to the installer</div>
+      </div>
+    </div>
+    <div class="slideover-footer">
+      <div style="font-size:12px;color:var(--subtext);" id="editLastUpdated"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline" onclick="closeSlideover()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTierData()">
+          <i class="fa-solid fa-floppy-disk"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- Import CSV modal                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-upload" style="color:var(--yellow);margin-right:8px;"></i>Import Tier Data from CSV</div>
+      <button class="modal-close" onclick="closeImport()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Step 1: Upload -->
+      <div id="importStep1">
+        <div class="alert alert-info" style="margin-bottom:14px;">
+          <i class="fa-solid fa-circle-info"></i>
+          <span style="font-size:12.5px;">Upload a CSV exported from this page. The <strong>username</strong> column is used to match installers. Columns not in the file are left unchanged. <a href="#" onclick="downloadTemplate(event)" style="color:var(--yellow);">Download template</a> if you need a starting point.</span>
+        </div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('csvFileInput').click()">
+          <i class="fa-solid fa-file-csv"></i>
+          <div class="dz-title">Click to browse or drag &amp; drop a CSV file</div>
+          <div class="dz-sub">Only .csv files · UTF-8 encoding recommended</div>
+        </div>
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" onchange="handleFileSelect(this)" />
+      </div>
+
+      <!-- Step 2: Preview (hidden until file loaded) -->
+      <div id="importStep2" style="display:none;">
+        <div class="import-summary" id="importSummary"></div>
+        <div class="preview-wrap" id="previewWrap" style="max-height:340px;overflow-y:auto;"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeImport()">Cancel</button>
+      <button class="btn btn-outline" id="backBtn" onclick="resetImport()" style="display:none;">
+        <i class="fa-solid fa-arrow-left"></i> Back
+      </button>
+      <button class="btn btn-primary" id="confirmImportBtn" onclick="confirmImport()" style="display:none;">
+        <i class="fa-solid fa-upload"></i> Confirm Import
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"><i id="toastIcon" class="fa-solid fa-circle-check"></i><span id="toastMsg"></span></div>
+
+<script>
+// ─── Auth + Admin Guard ────────────────────────────────────────────────────────
+const token    = localStorage.getItem('bg_token');
+const userData = JSON.parse(localStorage.getItem('bg_user') || '{}');
+if (!token)                    window.location.href = '/index.html';
+if (userData.role !== 'admin') window.location.href = '/dashboard.html';
+
+function logout() {
+  localStorage.removeItem('bg_token');
+  localStorage.removeItem('bg_user');
+  window.location.href = '/index.html';
+}
+document.getElementById('sidebarName').textContent    = userData.full_name || '—';
+document.getElementById('sidebarCompany').textContent = userData.company   || '';
+document.getElementById('sidebarAvatar').textContent  = (userData.full_name || 'A')[0].toUpperCase();
+
+// ─── State ─────────────────────────────────────────────────────────────────────
+let allUsers     = [];
+let parsedImport = [];
+
+// ─── Tier logic (mirrors server) ───────────────────────────────────────────────
+const TIER_THRESHOLDS = {
+  Master:   { sites: 50, needCI: true },
+  Expert:   { sites: 30, needAllScenarios: true },
+  Advanced: { sites: 10, backup: 5 },
+};
+
+function calcTier(res, ci, backup, og, pb, fb, ciScen) {
+  const total = res + ci;
+  const autoCi = ci > 0 ? 1 : ciScen;
+  if (total >= 50 && autoCi)           return 'Master';
+  if (total >= 30 && og && pb && fb)   return 'Expert';
+  if (total >= 10 && backup >= 5)      return 'Advanced';
+  return 'Standard';
+}
+
+function tierClass(tier) {
+  return { Standard:'tp-standard', Advanced:'tp-advanced', Expert:'tp-expert', Master:'tp-master' }[tier] || 'tp-standard';
+}
+function tierColor(tier) {
+  return { Standard:'#9CA3AF', Advanced:'#5EEAD4', Expert:'#FCD34D', Master:'#FFD014' }[tier] || '#9CA3AF';
+}
+
+// ─── Load data ─────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const res  = await fetch('/api/admin/tier-data', { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    allUsers = data.users;
+    updateStats();
+    renderTable();
+  } catch (err) {
+    document.getElementById('tierTableBody').innerHTML =
+      `<tr><td colspan="10"><div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${err.message}</div></td></tr>`;
+  }
+}
+
+function updateStats() {
+  const counts = { Standard:0, Advanced:0, Expert:0, Master:0 };
+  let totalKw  = 0;
+  allUsers.forEach(u => { counts[u.tier] = (counts[u.tier] || 0) + 1; totalKw += u.total_kw_installed || 0; });
+  document.getElementById('statStandard').textContent = counts.Standard;
+  document.getElementById('statAdvanced').textContent = counts.Advanced;
+  document.getElementById('statExpert').textContent   = counts.Expert;
+  document.getElementById('statMaster').textContent   = counts.Master;
+  document.getElementById('statKw').textContent       = totalKw >= 1000
+    ? (totalKw / 1000).toFixed(1) + ' MW' : totalKw.toFixed(1) + ' kW';
+}
+
+// ─── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const q  = document.getElementById('searchInput').value.toLowerCase();
+  const ft = document.getElementById('filterTier').value;
+
+  const rows = allUsers.filter(u =>
+    (!q  || (u.full_name||'').toLowerCase().includes(q) || (u.company||'').toLowerCase().includes(q)) &&
+    (!ft || u.tier === ft)
+  );
+
+  if (!rows.length) {
+    document.getElementById('tierTableBody').innerHTML =
+      `<tr><td colspan="10"><div class="empty-state"><i class="fa-solid fa-users-slash"></i>No installers found.</div></td></tr>`;
+    return;
+  }
+
+  document.getElementById('tierTableBody').innerHTML = rows.map(u => {
+    const ini  = (u.full_name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const total = (u.residential_sites||0) + (u.ci_sites||0);
+    const autoCi = (u.ci_sites||0) > 0 ? 1 : (u.scenario_ci||0);
+    const updDate = u.updated_at ? new Date(u.updated_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+    const dot = (on, title) => `<div class="s-dot ${on ? 'on':'off'}" title="${title}">${title.slice(0,2)}</div>`;
+
+    return `<tr>
+      <td>
+        <div class="user-cell">
+          <div class="u-avatar">${ini}</div>
+          <div><div class="u-name">${esc(u.full_name)}</div><div class="u-company">${esc(u.company)}</div></div>
+        </div>
+      </td>
+      <td class="num-cell ${!u.residential_sites ? 'dim':''}">${u.residential_sites||0}</td>
+      <td class="num-cell ${!u.ci_sites ? 'dim':''}">${u.ci_sites||0}</td>
+      <td class="num-cell" style="color:var(--subtext);font-size:12px;">${total}</td>
+      <td class="num-cell ${!u.backup_offgrid_sites ? 'dim':''}">${u.backup_offgrid_sites||0}</td>
+      <td class="num-cell" style="font-size:13px;">${(u.total_kw_installed||0).toFixed(1)}</td>
+      <td>
+        <div class="scenario-dots">
+          ${dot(u.scenario_ongrid,         'On-Grid')}
+          ${dot(u.scenario_partial_backup, 'Partial Backup')}
+          ${dot(u.scenario_full_backup,    'Full Backup')}
+          ${dot(autoCi,                    'C&I')}
+        </div>
+      </td>
+      <td><span class="tier-pill ${tierClass(u.tier)}">${u.tier}</span></td>
+      <td class="updated-cell">
+        ${u.updated_at ? `<div class="by">${esc(u.updated_by||'—')}</div><div>${updDate}</div>` : '<span style="color:var(--subtext);">Never</span>'}
+      </td>
+      <td style="text-align:right;">
+        <button class="edit-btn" onclick="openEdit(${u.id})">
+          <i class="fa-solid fa-pen-to-square"></i> Edit
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Edit slide-over ───────────────────────────────────────────────────────────
+function openEdit(id) {
+  const u = allUsers.find(u => u.id === id);
+  if (!u) return;
+
+  document.getElementById('editUserId').value       = id;
+  document.getElementById('editTitle').textContent  = `Edit — ${u.full_name}`;
+  document.getElementById('editSub').textContent    = u.company || '';
+  document.getElementById('eResidential').value     = u.residential_sites     || 0;
+  document.getElementById('eCi').value              = u.ci_sites              || 0;
+  document.getElementById('eBackup').value          = u.backup_offgrid_sites  || 0;
+  document.getElementById('eKw').value              = u.total_kw_installed    || 0;
+  document.getElementById('eNotes').value           = u.notes || '';
+
+  setCheckbox('sOG', 'scOG', !!u.scenario_ongrid);
+  setCheckbox('sPB', 'scPB', !!u.scenario_partial_backup);
+  setCheckbox('sFB', 'scFB', !!u.scenario_full_backup);
+  setCheckbox('sCI', 'scCI', !!(u.scenario_ci || u.ci_sites > 0));
+
+  const updDate = u.updated_at
+    ? new Date(u.updated_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
+    : null;
+  document.getElementById('editLastUpdated').textContent = updDate
+    ? `Last updated ${updDate} by ${u.updated_by || '—'}` : '';
+
+  livePreview();
+  document.getElementById('editSlideover').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSlideover() {
+  document.getElementById('editSlideover').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function setCheckbox(inputId, labelId, val) {
+  const input = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
+  input.checked = val;
+  label.classList.toggle('checked', val);
+}
+
+function toggleScenario(inputId, labelId) {
+  const input = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
+  input.checked = !input.checked;
+  label.classList.toggle('checked', input.checked);
+  livePreview();
+}
+
+function livePreview() {
+  const res    = parseInt(document.getElementById('eResidential').value) || 0;
+  const ci     = parseInt(document.getElementById('eCi').value)          || 0;
+  const backup = parseInt(document.getElementById('eBackup').value)      || 0;
+  const og     = document.getElementById('sOG').checked ? 1 : 0;
+  const pb     = document.getElementById('sPB').checked ? 1 : 0;
+  const fb     = document.getElementById('sFB').checked ? 1 : 0;
+  const ciScen = document.getElementById('sCI').checked ? 1 : 0;
+  const total  = res + ci;
+
+  // Auto-check CI scenario if ci_sites > 0
+  if (ci > 0 && !document.getElementById('sCI').checked) {
+    setCheckbox('sCI', 'scCI', true);
+  }
+
+  document.getElementById('eTotalSites').textContent = total;
+
+  const tier  = calcTier(res, ci, backup, og, pb, fb, ciScen || (ci > 0 ? 1 : 0));
+  const label = document.getElementById('livetierlabel');
+  label.textContent  = tier;
+  label.style.color  = tierColor(tier);
+
+  // Hint: what's needed for next tier
+  let hint = '';
+  if (tier === 'Standard') {
+    const need = Math.max(0, 10 - total);
+    hint = need > 0
+      ? `Need ${need} more site${need>1?'s':''} + 5 backup sites for Advanced`
+      : 'Sites OK — need 5 backup sites for Advanced';
+  } else if (tier === 'Advanced') {
+    const need = Math.max(0, 30 - total);
+    hint = need > 0
+      ? `Need ${need} more site${need>1?'s':''} + all 3 scenarios for Expert`
+      : `Sites OK — need On-Grid, Partial, Full Backup scenarios for Expert`;
+  } else if (tier === 'Expert') {
+    const need = Math.max(0, 50 - total);
+    hint = need > 0
+      ? `Need ${need} more site${need>1?'s':''} + C&I scenario for Master`
+      : 'Sites OK — need C&I scenario for Master';
+  } else {
+    hint = 'Highest tier reached!';
+  }
+  document.getElementById('liveTierHint').textContent = hint;
+}
+
+async function saveTierData() {
+  const id = document.getElementById('editUserId').value;
+  const body = {
+    residential_sites:    parseInt(document.getElementById('eResidential').value) || 0,
+    ci_sites:             parseInt(document.getElementById('eCi').value)           || 0,
+    backup_offgrid_sites: parseInt(document.getElementById('eBackup').value)       || 0,
+    total_kw_installed:   parseFloat(document.getElementById('eKw').value)         || 0,
+    scenario_ongrid:          document.getElementById('sOG').checked ? 1 : 0,
+    scenario_partial_backup:  document.getElementById('sPB').checked ? 1 : 0,
+    scenario_full_backup:     document.getElementById('sFB').checked ? 1 : 0,
+    scenario_ci:              document.getElementById('sCI').checked ? 1 : 0,
+    notes:                document.getElementById('eNotes').value.trim(),
+  };
+
+  try {
+    const res  = await fetch(`/api/admin/tier-data/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const idx = allUsers.findIndex(u => u.id === parseInt(id));
+    if (idx !== -1) allUsers[idx] = { ...allUsers[idx], ...data.user };
+    updateStats();
+    renderTable();
+    closeSlideover();
+    showToast('Tier data saved. Tier recalculated.', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── CSV Export ────────────────────────────────────────────────────────────────
+const CSV_COLS = [
+  'username','full_name','company',
+  'residential_sites','ci_sites','backup_offgrid_sites','total_kw_installed',
+  'scenario_ongrid','scenario_partial_backup','scenario_full_backup','scenario_ci',
+  'notes','current_tier',
+];
+const CSV_HEADERS = [
+  'username','full_name','company',
+  'residential_sites','ci_sites','backup_offgrid_sites','total_kw_installed',
+  'scenario_ongrid','scenario_partial_backup','scenario_full_backup','scenario_ci',
+  'notes','current_tier',
+];
+
+function toCSV(rows) {
+  const header = CSV_HEADERS.join(',');
+  const body   = rows.map(u => [
+    u.username, u.full_name, u.company,
+    u.residential_sites||0, u.ci_sites||0, u.backup_offgrid_sites||0, u.total_kw_installed||0,
+    u.scenario_ongrid||0, u.scenario_partial_backup||0, u.scenario_full_backup||0, u.scenario_ci||0,
+    `"${(u.notes||'').replace(/"/g,'""')}"`,
+    u.tier,
+  ].join(',')).join('\n');
+  return header + '\n' + body;
+}
+
+function downloadCSV() {
+  if (!allUsers.length) { showToast('No data to export.', 'error'); return; }
+  const csv  = toCSV(allUsers);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `bg-tier-data-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exported!', 'success');
+}
+
+function downloadTemplate(e) {
+  e.preventDefault();
+  const header = CSV_HEADERS.join(',');
+  const example = 'somchai,Somchai K.,SolarThai Co.,6,0,0,42,1,0,0,0,Verified Q1 2026,Standard';
+  const blob = new Blob([header + '\n' + example], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'bg-tier-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── CSV Import ────────────────────────────────────────────────────────────────
+function openImport() {
+  resetImport();
+  document.getElementById('importModal').classList.add('open');
+}
+
+function closeImport() {
+  document.getElementById('importModal').classList.remove('open');
+  resetImport();
+}
+
+function resetImport() {
+  parsedImport = [];
+  document.getElementById('importStep1').style.display = '';
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('confirmImportBtn').style.display = 'none';
+  document.getElementById('backBtn').style.display          = 'none';
+  document.getElementById('csvFileInput').value             = '';
+  document.getElementById('previewWrap').innerHTML          = '';
+  document.getElementById('importSummary').innerHTML        = '';
+}
+
+// Drag-and-drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processCSVFile(file);
+});
+
+function handleFileSelect(input) {
+  if (input.files[0]) processCSVFile(input.files[0]);
+}
+
+function processCSVFile(file) {
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    showToast('Please upload a .csv file.', 'error'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) { showToast('CSV has no data rows.', 'error'); return; }
+
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g,''));
+  const usernameIdx = headers.indexOf('username');
+  if (usernameIdx === -1) { showToast('CSV must have a "username" column.', 'error'); return; }
+
+  const knownUsernames = new Set(allUsers.map(u => u.username));
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    // Handle quoted fields
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 2) continue;
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = (cols[idx] || '').trim(); });
+    row._matched = knownUsernames.has(row.username);
+    rows.push(row);
+  }
+
+  parsedImport = rows;
+  showPreview(rows, headers);
+}
+
+function parseCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQ = !inQ; }
+    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function showPreview(rows, headers) {
+  const matched   = rows.filter(r => r._matched).length;
+  const unmatched = rows.length - matched;
+
+  document.getElementById('importSummary').innerHTML = `
+    <span class="import-chip chip-total">${rows.length} rows total</span>
+    <span class="import-chip chip-match"><i class="fa-solid fa-circle-check"></i> ${matched} matched</span>
+    ${unmatched ? `<span class="import-chip chip-nomatch"><i class="fa-solid fa-circle-xmark"></i> ${unmatched} not found (will be skipped)</span>` : ''}
+  `;
+
+  // Show preview of numeric/scenario cols + match status
+  const displayCols = ['username','residential_sites','ci_sites','backup_offgrid_sites','total_kw_installed',
+                        'scenario_ongrid','scenario_partial_backup','scenario_full_backup','scenario_ci','notes'];
+  const availCols = displayCols.filter(c => headers.includes(c) || c === 'username');
+
+  document.getElementById('previewWrap').innerHTML = `
+    <table class="preview-table">
+      <thead><tr>
+        <th>Match</th>
+        ${availCols.map(c => `<th>${c.replace(/_/g,' ')}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${rows.slice(0, 50).map(r => `<tr>
+          <td class="${r._matched ? 'match-yes':'match-no'}">${r._matched ? '✓ Found':'✗ Skip'}</td>
+          ${availCols.map(c => `<td>${esc(r[c]||'')}</td>`).join('')}
+        </tr>`).join('')}
+        ${rows.length > 50 ? `<tr><td colspan="${availCols.length+1}" style="text-align:center;color:var(--subtext);padding:10px;">…and ${rows.length-50} more rows</td></tr>` : ''}
+      </tbody>
+    </table>
+  `;
+
+  document.getElementById('importStep1').style.display  = 'none';
+  document.getElementById('importStep2').style.display  = '';
+  document.getElementById('backBtn').style.display          = '';
+  if (matched > 0) document.getElementById('confirmImportBtn').style.display = '';
+}
+
+async function confirmImport() {
+  const toSend = parsedImport.filter(r => r._matched);
+  if (!toSend.length) { showToast('No matching installers to import.', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/admin/tier-data/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rows: toSend }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    closeImport();
+    showToast(`Import complete — ${data.updated} updated, ${data.skipped} skipped.`, 'success');
+    // Reload fresh data
+    await loadData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastIcon').className = type === 'success'
+    ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation';
+  document.getElementById('toastMsg').textContent = msg;
+  toast.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSlideover(); closeImport(); }
+});
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+<script src="/nav.js"></script>
+</body>
+</html>

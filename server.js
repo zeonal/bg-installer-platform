@@ -97,6 +97,7 @@ seedDatabase();
 
 // ─── Schema Migrations (safe: silently skip if column already exists) ──────────
 [
+  // users table
   `ALTER TABLE users ADD COLUMN email    TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN phone    TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN line_id  TEXT    NOT NULL DEFAULT ''`,
@@ -104,7 +105,20 @@ seedDatabase();
   `ALTER TABLE users ADD COLUMN province TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN bio      TEXT    NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN active   INTEGER NOT NULL DEFAULT 1`,
+  // installer_profiles table — split sites into residential + C&I, add audit cols
+  `ALTER TABLE installer_profiles ADD COLUMN residential_sites INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE installer_profiles ADD COLUMN ci_sites          INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE installer_profiles ADD COLUMN notes             TEXT    NOT NULL DEFAULT ''`,
+  `ALTER TABLE installer_profiles ADD COLUMN updated_at        DATETIME`,
+  `ALTER TABLE installer_profiles ADD COLUMN updated_by        TEXT    NOT NULL DEFAULT ''`,
 ].forEach(sql => { try { db.exec(sql); } catch (_) {} });
+
+// Seed residential_sites from existing sites_commissioned for rows that haven't been split yet
+db.exec(`
+  UPDATE installer_profiles
+  SET residential_sites = sites_commissioned
+  WHERE residential_sites = 0 AND sites_commissioned > 0
+`);
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -350,6 +364,130 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
   db.prepare('DELETE FROM installer_profiles WHERE user_id = ?').run(id);
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
   res.json({ message: 'User deleted successfully.' });
+});
+
+// ─── Admin: Tier Data Management Routes ───────────────────────────────────────
+
+// GET /api/admin/tier-data — all installers with full profile + tier
+app.get('/api/admin/tier-data', authenticateToken, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT u.id, u.username, u.full_name, u.company, u.active,
+           p.residential_sites, p.ci_sites, p.backup_offgrid_sites, p.total_kw_installed,
+           p.scenario_ongrid, p.scenario_partial_backup, p.scenario_full_backup, p.scenario_ci,
+           p.sites_commissioned, p.notes, p.updated_at, p.updated_by
+    FROM users u
+    LEFT JOIN installer_profiles p ON p.user_id = u.id
+    WHERE u.role = 'installer'
+    ORDER BY u.full_name ASC
+  `).all();
+
+  const result = rows.map(r => ({ ...r, tier: calculateTier(r) }));
+  res.json({ users: result });
+});
+
+// PUT /api/admin/tier-data/:userId — update one installer's profile
+app.put('/api/admin/tier-data/:userId', authenticateToken, requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId);
+  const {
+    residential_sites, ci_sites, backup_offgrid_sites, total_kw_installed,
+    scenario_ongrid, scenario_partial_backup, scenario_full_backup, scenario_ci,
+    notes
+  } = req.body;
+
+  const res_sites  = Math.max(0, parseInt(residential_sites)    || 0);
+  const ci_s       = Math.max(0, parseInt(ci_sites)             || 0);
+  const bk_sites   = Math.max(0, parseInt(backup_offgrid_sites) || 0);
+  const kw         = Math.max(0, parseFloat(total_kw_installed) || 0);
+  const total_commissioned = res_sites + ci_s;
+
+  // Auto-set CI scenario if installer has any CI projects
+  const s_ci  = ci_s > 0 ? 1 : (parseInt(scenario_ci)             || 0);
+  const s_og  = parseInt(scenario_ongrid)          || 0;
+  const s_pb  = parseInt(scenario_partial_backup)  || 0;
+  const s_fb  = parseInt(scenario_full_backup)     || 0;
+
+  // Fetch admin name for audit trail
+  const admin = db.prepare('SELECT full_name FROM users WHERE id = ?').get(req.user.id);
+  const updatedBy = admin ? admin.full_name : req.user.username;
+
+  db.prepare(`
+    UPDATE installer_profiles
+    SET residential_sites = ?, ci_sites = ?, sites_commissioned = ?,
+        backup_offgrid_sites = ?, total_kw_installed = ?,
+        scenario_ongrid = ?, scenario_partial_backup = ?,
+        scenario_full_backup = ?, scenario_ci = ?,
+        notes = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+    WHERE user_id = ?
+  `).run(
+    res_sites, ci_s, total_commissioned,
+    bk_sites, kw,
+    s_og, s_pb, s_fb, s_ci,
+    (notes || '').trim(), updatedBy,
+    userId
+  );
+
+  const updated = db.prepare(`
+    SELECT u.id, u.username, u.full_name, u.company,
+           p.residential_sites, p.ci_sites, p.backup_offgrid_sites, p.total_kw_installed,
+           p.scenario_ongrid, p.scenario_partial_backup, p.scenario_full_backup, p.scenario_ci,
+           p.sites_commissioned, p.notes, p.updated_at, p.updated_by
+    FROM users u LEFT JOIN installer_profiles p ON p.user_id = u.id WHERE u.id = ?
+  `).get(userId);
+
+  res.json({ user: { ...updated, tier: calculateTier(updated) }, message: 'Tier data updated.' });
+});
+
+// POST /api/admin/tier-data/import — bulk CSV import (parsed rows sent as JSON)
+app.post('/api/admin/tier-data/import', authenticateToken, requireAdmin, (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0)
+    return res.status(400).json({ error: 'No data rows provided.' });
+
+  const admin = db.prepare('SELECT full_name FROM users WHERE id = ?').get(req.user.id);
+  const updatedBy = admin ? admin.full_name : req.user.username;
+
+  let updated = 0, skipped = 0;
+  const errors = [];
+
+  const importOne = db.transaction((row) => {
+    const user = db.prepare('SELECT id FROM users WHERE username = ? AND role = ?').get(
+      (row.username || '').trim().toLowerCase(), 'installer'
+    );
+    if (!user) { skipped++; return; }
+
+    const res_sites = Math.max(0, parseInt(row.residential_sites) || 0);
+    const ci_s      = Math.max(0, parseInt(row.ci_sites)          || 0);
+    const bk_sites  = Math.max(0, parseInt(row.backup_offgrid_sites) || 0);
+    const kw        = Math.max(0, parseFloat(row.total_kw_installed)  || 0);
+    const total     = res_sites + ci_s;
+    const s_ci  = ci_s > 0 ? 1 : (parseInt(row.scenario_ci)            || 0);
+    const s_og  = parseInt(row.scenario_ongrid)         || 0;
+    const s_pb  = parseInt(row.scenario_partial_backup) || 0;
+    const s_fb  = parseInt(row.scenario_full_backup)    || 0;
+
+    db.prepare(`
+      UPDATE installer_profiles
+      SET residential_sites = ?, ci_sites = ?, sites_commissioned = ?,
+          backup_offgrid_sites = ?, total_kw_installed = ?,
+          scenario_ongrid = ?, scenario_partial_backup = ?,
+          scenario_full_backup = ?, scenario_ci = ?,
+          notes = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+      WHERE user_id = ?
+    `).run(
+      res_sites, ci_s, total, bk_sites, kw,
+      s_og, s_pb, s_fb, s_ci,
+      (row.notes || '').trim(), updatedBy,
+      user.id
+    );
+    updated++;
+  });
+
+  for (const row of rows) {
+    try { importOne(row); }
+    catch (e) { errors.push(`${row.username || '?'}: ${e.message}`); }
+  }
+
+  res.json({ message: 'Import complete.', updated, skipped, errors });
 });
 
 // GET /api/settings — full profile for the settings page
